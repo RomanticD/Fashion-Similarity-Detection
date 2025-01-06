@@ -3,8 +3,6 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
-import os
-import pymysql  # 或其他数据库驱动
 
 # 1) 加载预训练模型
 model = models.resnet50(pretrained=True)

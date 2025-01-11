@@ -81,9 +81,9 @@ def compare_similarities(single_image_dict, images_dict):
 
 if __name__ == '__main__':
     # 示例：现有图片
-    existing_imgs = ["testCoat2.png", "testCoat3.png"]
+    existing_imgs = ["Assets/testCoat2.png", "Assets/testCoat3.png"]
     # 待对比的单张图片
-    single_img = "testCoat.png"
+    single_img = "Assets/testCoat.png"
 
     # 1) 加载已有图片的特征
     images_dict = load_images_feature_vectors(existing_imgs)

@@ -3,6 +3,7 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
+from pathlib import Path
 
 # ---------------------
 # 1) 加载预训练的 ResNet50 模型，并去掉最终分类层
@@ -81,9 +82,17 @@ def compare_similarities(single_image_dict, images_dict):
 
 if __name__ == '__main__':
     # 示例：现有图片
-    existing_imgs = ["Assets/testCoat2.png", "Assets/testCoat3.png"]
+    # 获取当前脚本所在的目录
+    current_dir = Path(__file__).resolve().parent
+
+    # 假设项目根目录在当前目录的上一级
+    project_root = current_dir.parent.parent
+
+    # 构建相对于项目根目录的图片路径
+    existing_imgs = [project_root / "Assets" / "testCoat2.png",
+                     project_root / "Assets" / "testCoat3.png"]
     # 待对比的单张图片
-    single_img = "Assets/testCoat.png"
+    single_img = project_root / "Assets" / "testCoat.png"
 
     # 1) 加载已有图片的特征
     images_dict = load_images_feature_vectors(existing_imgs)

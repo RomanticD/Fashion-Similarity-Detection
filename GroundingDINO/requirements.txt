@@ -1,10 +1,3 @@
-torch
-torchvision
-transformers
-addict
-yapf
-timm
-numpy
-opencv-python
-supervision>=0.22.0
-pycocotools
+version https://git-lfs.github.com/spec/v1
+oid sha256:3e7e7883223695d9f66fc913b04543cc3a05b2fd2a2386a3fe4060c60ce0c0e4
+size 100

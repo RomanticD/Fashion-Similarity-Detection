@@ -120,7 +120,7 @@ dmypy.json
 cython_debug/
 
 # JetBrains IDEs (e.g., PyCharm)
-.idea/
+.idea
 *.iml
 *.ipr
 *.iws

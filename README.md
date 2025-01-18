@@ -32,7 +32,7 @@ By default, PyTorch saves the downloaded models to a directory in your home fold
 #### 4. **Configure the Database Connection**
    In the dialog that appears, enter the following connection details:
 
-   - **Host**: `database-1.c5282akgwxld.ap-southeast-2.rds.amazonaws.com` (Replace with your actual host)
+   - **Host**: `database-1.c5282akgwxld.ap-southeast-2.rds.amazonaws.com`
    - **Port**: `3306`
    - **User**: `admin`
    - **Password**: `112345678` 

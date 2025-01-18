@@ -9,7 +9,7 @@ When you run a PyTorch-based project that requires a pre-trained model, PyTorch 
 ### Default Download Location
 
 By default, PyTorch saves the downloaded models to a directory in your home folder, which is: 
-[https://download.pytorch.org/models/resnet50-0676ba61.pth](https://download.pytorch.org/models/resnet50-0676ba61.pth)
+[/Users/YOUR_USERNAME/.cache/torch/hub/checkpoints/resnet50-0676ba61.pth](/Users/YOUR_USERNAME/.cache/torch/hub/checkpoints/resnet50-0676ba61.pth)
 
 ### Default Download Location
 

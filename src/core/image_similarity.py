@@ -1,5 +1,6 @@
 import torch
 import torchvision.models as models
+from torchvision.models import ResNet50_Weights  # 导入权重枚举类型
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
@@ -8,7 +9,8 @@ from pathlib import Path
 # ---------------------
 # 1) 加载预训练的 ResNet50 模型，并去掉最终分类层
 # ---------------------
-model = models.resnet50(pretrained=True)
+weights = ResNet50_Weights.IMAGENET1K_V1
+model = models.resnet50(weights=weights)
 model.eval()  # 设置为推理模式
 model.fc = torch.nn.Identity()  # 去掉最后的分类层，保留 2048 维特征
 

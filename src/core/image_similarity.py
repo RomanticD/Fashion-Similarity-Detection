@@ -5,6 +5,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
 from pathlib import Path
+import time
 
 # ---------------------
 # 1) 加载预训练的 ResNet50 模型，并去掉最终分类层
@@ -31,13 +32,24 @@ def extract_feature(img_path):
     """
     给定图片路径，返回提取的 ResNet50 特征（2048 维向量）
     """
+    start_time = time.time()  # 记录开始时间
+
+    # 图片预处理
     img = Image.open(img_path).convert('RGB')
     img_t = transform(img)
     img_t = img_t.unsqueeze(0)  # 增加batch维度
 
     with torch.no_grad():
         feat = model(img_t)  # 输出形状为 [1, 2048]
-    return feat.squeeze(0).numpy()  # 转换为形状 [2048] 的numpy数组
+
+    feature = feat.squeeze(0).numpy()  # 转换为形状 [2048] 的numpy数组
+
+    end_time = time.time()  # 记录结束时间
+    elapsed_time = end_time - start_time  # 计算时间差
+
+    print(f"处理{img_path}，得到向量用时: {elapsed_time:.4f}秒")  # 打印运行时间，保留四位小数
+
+    return feature
 
 
 def cosine_similarity(vec1, vec2):

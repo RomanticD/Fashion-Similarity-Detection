@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import pymysql
+import json
 
 app = Flask(__name__)
 # 允许所有路由跨域，如果你只想配置特定路由，也可以局部使用 @cross_origin()
@@ -170,7 +171,7 @@ def delete_splitted_image_db(splitted_image_id):
     finally:
         conn.close()
 
-# --------------- Flask 路由 ---------------
+# --------------- flask 路由 ---------------
 # -- 1) image_features 路由
 
 @app.route("/image_features", methods=["POST", "OPTIONS"])

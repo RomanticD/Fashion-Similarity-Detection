@@ -1,5 +1,4 @@
 # image_processing.py
-
 import numpy as np
 from PIL import Image
 import GroundingDINO.groundingdino.datasets.transforms as T
@@ -125,9 +124,11 @@ def run_inference(model, transform, segments: List[np.ndarray], TEXT_PROMPT: str
             logger.error(f"Error during inference: {e}")
 
     # 拼接所有注释过的段以形成完整图像
-    annotated_image = combine_segments_vertically(annotated_segments, segments[0].shape[0] * len(segments),
-                                                  segments[0].shape[1])
-    FRAME_WINDOW.image(annotated_image, channels='BGR')
+    if FRAME_WINDOW is not None:
+        annotated_image = combine_segments_vertically(annotated_segments, segments[0].shape[0] * len(segments),
+                                                      segments[0].shape[1])
+        FRAME_WINDOW.image(annotated_image, channels='BGR')
+
     logger.info(f"Inference completed. {len(bboxes)} bounding boxes detected.")
     return bboxes
 

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from PIL import Image
 import numpy as np
+from image_similarity import load_images_from_arrays, extract_feature, compare_similarities, load_single_image_feature_vector
 
 # 导入刚才创建的模块
 from image_processing import split_image_vertically, run_inference, prepare_transform
@@ -69,6 +70,7 @@ def detect_clothes_in_image(image, FRAME_WINDOW=None):
         print(f"检测过程中出错2: {e}")
         return []
 
+
 # 示例调用
 if __name__ == "__main__":
     # 根目录
@@ -91,14 +93,22 @@ if __name__ == "__main__":
 
     # 打开图像并转换为 numpy 数组
     image = Image.open(image_path)
-
-    # 转换为 numpy.ndarray
     image_np = np.array(image)
 
-    # 调用检测函数进行服装检测
+    # 调用检测函数获取分割后的图像数组
     result_bboxes = detect_clothes_in_image(image_np)
 
-    # 显示检测结果
-    for idx, bbox in enumerate(result_bboxes):
-        img = Image.fromarray(bbox)
-        img.show()
+    # 加载分割图像特征
+    segmented_features = load_images_from_arrays(result_bboxes)
+
+    # 加载对比图片特征
+    single_img_path = root_dir / "Assets" / "spilt_image_similarity_test_2.png"
+    single_feature = load_single_image_feature_vector(single_img_path)
+
+    # 执行相似度对比
+    similarity_results = compare_similarities(single_feature, segmented_features)
+
+    # 打印对比结果
+    print(f"\n对比图片: {single_img_path.name}")
+    for img_name, similarity in sorted(similarity_results, key=lambda x: x[1], reverse=True):
+        print(f"分割区域 {img_name}: 相似度 {similarity:.4f}")

@@ -71,6 +71,19 @@ def detect_clothes_in_image(image, FRAME_WINDOW=None):
         return []
 
 
+
+def clear_directory(data_dir):
+    # 确保路径是一个目录
+    if data_dir.exists() and data_dir.is_dir():
+        # 遍历目录中的所有文件并删除
+        for file in data_dir.rglob('*'):  # rglob 匹配所有文件和文件夹
+            if file.is_file():  # 仅删除文件，保持子文件夹
+                file.unlink()  # 删除文件
+            elif file.is_dir():  # 删除空的子文件夹
+                file.rmdir()  # 删除空文件夹
+    else:
+        print(f"{data_dir} 不是一个有效的目录。")
+
 # 示例调用
 if __name__ == "__main__":
     # 根目录
@@ -98,8 +111,26 @@ if __name__ == "__main__":
     # 调用检测函数获取分割后的图像数组
     result_bboxes = detect_clothes_in_image(image_np)
 
-    # 加载分割图像特征
-    segmented_features = load_images_from_arrays(result_bboxes)
+    # --------------------------
+    # 新增代码：保存分割图片到data目录
+    # --------------------------
+    data_dir = root_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)  # 自动创建目录
+
+    saved_paths = []
+    for idx, img_array in enumerate(result_bboxes):
+        img = Image.fromarray(img_array)
+        filename = f"segment_{idx}.png"
+        save_path = data_dir / filename
+        img.save(save_path)
+        saved_paths.append(save_path)
+        print(f"已保存分割图片: {save_path}")
+
+    # 加载分割图像特征（从保存的文件加载）
+    segmented_features = {}
+    for path in saved_paths:
+        feature_dict = load_single_image_feature_vector(path)
+        segmented_features.update(feature_dict)
 
     # 加载对比图片特征
     single_img_path = root_dir / "Assets" / "spilt_image_similarity_test_2.png"
@@ -108,7 +139,7 @@ if __name__ == "__main__":
     # 执行相似度对比
     similarity_results = compare_similarities(single_feature, segmented_features)
 
-    # 打印对比结果
+    # 打印对比结果（保持原输出格式）
     print(f"\n对比图片: {single_img_path.name}")
     for img_name, similarity in sorted(similarity_results, key=lambda x: x[1], reverse=True):
         print(f"分割区域 {img_name}: 相似度 {similarity:.4f}")

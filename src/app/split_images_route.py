@@ -1,3 +1,5 @@
+#split_images_route.py
+
 from flask import request, app, jsonify, Flask
 from flask_cors import cross_origin, CORS
 

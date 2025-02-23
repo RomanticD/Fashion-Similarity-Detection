@@ -1,19 +1,14 @@
 # Configuration
 
 
-## PyTorch Model Download Location
+## Setup
+run `pip install -r requirements.txt` to install all the required packages.
 
-When you run a PyTorch-based project that requires a pre-trained model, PyTorch will automatically download the model file from its online repository the first time you use it. 
+### Download Checkpoints
+You need to search online and download `groundingdino_swint_ogc.pth` to the `src/checkpoints` folder.
 
-
-### Default Download Location
-
-By default, PyTorch saves the downloaded models to a directory in your home folder, which is: 
+Also, when you run project,there will be a model automatically downloaded to a directory in your home folder, which is by default: 
 [/Users/YOUR_USERNAME/.cache/torch/hub/checkpoints/resnet50-0676ba61.pth](/Users/YOUR_USERNAME/.cache/torch/hub/checkpoints/resnet50-0676ba61.pth)
-
-### Default Download Location
-
-By default, PyTorch saves the downloaded models to a directory in your home folder, which is:
 
 ## Connecting to MySQL Database using PyCharm IDE
 

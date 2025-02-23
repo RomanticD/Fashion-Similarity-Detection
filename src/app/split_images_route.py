@@ -1,13 +1,15 @@
 #split_images_route.py
 
-from flask import request, app, jsonify, Flask
+from flask import request, app, jsonify, Blueprint
 from flask_cors import cross_origin, CORS
 
 from src.db.db_connect import get_connection
 from src.repo.split_images_repo import create_split_image_db, read_split_image_db, update_split_image_db, \
     delete_split_image_db
 
-@app.route("/splitted_images", methods=["POST", "OPTIONS"])
+api_sp = Blueprint('split_images_route', __name__)
+
+@api_sp.route("/splitted_images", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_splitted_image():
     """
@@ -35,7 +37,7 @@ def create_splitted_image():
     else:
         return jsonify({"success": False, "message": "创建子图失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["GET", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["GET", "OPTIONS"])
 @cross_origin()
 def read_splitted_image(splitted_image_id):
     """
@@ -48,7 +50,7 @@ def read_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "未查询到对应子图记录"}), 404
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["PUT", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["PUT", "OPTIONS"])
 @cross_origin()
 def update_splitted_image(splitted_image_id):
     """
@@ -69,7 +71,7 @@ def update_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "子图记录更新失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["DELETE", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["DELETE", "OPTIONS"])
 @cross_origin()
 def delete_splitted_image(splitted_image_id):
     """
@@ -82,7 +84,7 @@ def delete_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "子图记录删除失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
+@api_sp.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
 def read_splitted_images_by_original(original_image_id):
     """
     根据 original_image_id 查询所有子图

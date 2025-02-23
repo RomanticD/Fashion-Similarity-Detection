@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from flask import request, app, jsonify, Flask
+from flask import request, app, jsonify, Flask, Blueprint
 from flask_cors import cross_origin, CORS
 
 from src.db.db_connect import get_connection
@@ -16,9 +16,9 @@ import io
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-CORS(app)
-@app.route("/splitted_images", methods=["POST", "OPTIONS"])
+api_sp = Blueprint('split_images', __name__)
+
+@api_sp.route("/splitted_images", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_splitted_image():
     """
@@ -46,7 +46,7 @@ def create_splitted_image():
     else:
         return jsonify({"success": False, "message": "创建子图失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["GET", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["GET", "OPTIONS"])
 @cross_origin()
 def read_splitted_image(splitted_image_id):
     """
@@ -59,7 +59,7 @@ def read_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "未查询到对应子图记录"}), 404
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["PUT", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["PUT", "OPTIONS"])
 @cross_origin()
 def update_splitted_image(splitted_image_id):
     """
@@ -80,7 +80,7 @@ def update_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "子图记录更新失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["DELETE", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["DELETE", "OPTIONS"])
 @cross_origin()
 def delete_splitted_image(splitted_image_id):
     """
@@ -94,7 +94,7 @@ def delete_splitted_image(splitted_image_id):
         return jsonify({"success": False, "message": "子图记录删除失败，请检查后端日志"}), 500
 
 
-@app.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
+@api_sp.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
 @cross_origin()
 def read_splitted_images_by_original(original_image_id):
     """
@@ -116,7 +116,7 @@ def read_splitted_images_by_original(original_image_id):
         return jsonify({"success": False, "message": "查询异常，请查看后端日志"}), 500
     finally:
         conn.close()
-@app.route("/split_image_upload", methods=["POST"])
+@api_sp.route("/split_image_upload", methods=["POST"])
 
 def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, splitted_image_path, original_image_id: str, bounding_box: str, image_format: str):
     """

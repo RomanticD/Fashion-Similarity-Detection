@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from PIL import Image
 import numpy as np
+from torch.utils.checkpoint import checkpoint
+
 from image_similarity import load_images_from_arrays, extract_feature, compare_similarities, load_single_image_feature_vector
 
 # 导入刚才创建的模块
@@ -42,7 +44,7 @@ Exception: If any error occurs during image processing or inference.
 def detect_clothes_in_image(image, FRAME_WINDOW=None):
     # Model Backbone
     CONFIG_PATH = groundingdino_path / 'groundingdino' / 'config' / 'GroundingDINO_SwinT_OGC.py'
-    WEIGHTS_PATH = root_dir / 'groundingdino_swint_ogc.pth'
+    WEIGHTS_PATH = root_dir / 'src' / 'checkpoints' / 'groundingdino_swint_ogc.pth'
 
     # 检查权重文件是否存在
     if not WEIGHTS_PATH.exists():

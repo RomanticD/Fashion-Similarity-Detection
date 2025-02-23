@@ -133,3 +133,5 @@ out/
 *.pth
 
 ScreenShots
+
+.env

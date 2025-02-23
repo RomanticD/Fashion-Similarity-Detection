@@ -30,10 +30,11 @@ By default, PyTorch saves the downloaded models to a directory in your home fold
    - Select **Data Source** > **MySQL** from the dropdown menu.
 
 #### 4. **Configure the Database Connection**
-   In the dialog that appears, enter the following connection details:
-
-   - **Host**: `database-1.c5282akgwxld.ap-southeast-2.rds.amazonaws.com`
-   - **Port**: `3306`
-   - **User**: `admin`
-   - **Password**: `112345678` 
-   - **Database**: `fashion_db`
+   Add a .env file to your project and store the database connection details in it. The .env file should look like this:
+   
+   ```plaintext
+    DB_HOST=your_database_host
+    DB_PORT=your_database_port
+    DB_NAME=your_database_name
+    DB_USER=your_database_user
+    DB_PASSWORD=your_database_password

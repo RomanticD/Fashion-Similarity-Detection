@@ -8,6 +8,7 @@ from image_similarity import load_images_from_arrays, extract_feature, compare_s
 
 # 导入刚才创建的模块
 from image_processing import split_image_vertically, run_inference, prepare_transform
+from src.flask.split_images_route import upload_splitted_image_to_db
 
 # 设置 Python 路径
 root_dir = Path(__file__).parent.resolve()
@@ -100,6 +101,8 @@ if __name__ == "__main__":
     # 图像路径
     image_path = screenshots_dir / "01.jpeg"
 
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+
     # 检查图像文件是否存在
     if not image_path.exists():
         raise FileNotFoundError(f"图像文件 '{image_path}' 不存在，请确保文件路径正确。")
@@ -125,6 +128,10 @@ if __name__ == "__main__":
         img.save(save_path)
         saved_paths.append(save_path)
         print(f"已保存分割图片: {save_path}")
+        # 上传分割图片 By Kazami
+        upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png")
+
+
 
     # 加载分割图像特征（从保存的文件加载）
     segmented_features = {}

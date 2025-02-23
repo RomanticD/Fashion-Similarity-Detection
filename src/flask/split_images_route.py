@@ -1,3 +1,6 @@
+import logging
+
+import numpy as np
 from flask import request, app, jsonify, Flask
 from flask_cors import cross_origin, CORS
 
@@ -5,6 +8,16 @@ from src.db.db_connect import get_connection
 from src.repo.split_images_repo import create_split_image_db, read_split_image_db, update_split_image_db, \
     delete_split_image_db
 
+from PIL import Image
+import io
+
+
+# 配置日志记录
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+CORS(app)
 @app.route("/splitted_images", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_splitted_image():
@@ -80,7 +93,9 @@ def delete_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "子图记录删除失败，请检查后端日志"}), 500
 
+
 @app.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
+@cross_origin()
 def read_splitted_images_by_original(original_image_id):
     """
     根据 original_image_id 查询所有子图
@@ -100,4 +115,42 @@ def read_splitted_images_by_original(original_image_id):
         print("Error reading splitted_images by original:", e)
         return jsonify({"success": False, "message": "查询异常，请查看后端日志"}), 500
     finally:
+        conn.close()
+@app.route("/split_image_upload", methods=["POST"])
+
+def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, splitted_image_path, original_image_id: str, bounding_box: str, image_format: str):
+    """
+    上传切割后的图像数据到数据库。
+
+    参数:
+    - image_data (np.ndarray): 输入图像的 NumPy 数组。
+    - splitted_image_id (str): 切割后的图像 ID。
+    - original_image_id (str): 原始图像的 ID。
+    - bounding_box (str): 目标检测的边界框数据。
+    """
+    # 将 NumPy 数组转换为字节数据
+    img_byte_arr = io.BytesIO()
+    Image.fromarray(image_data).save(img_byte_arr, format=image_format)
+    img_byte_arr = img_byte_arr.getvalue()
+
+    # 连接到数据库
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 插入切割后的图像数据
+        cursor.execute("""
+            INSERT INTO splitted_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, img_byte_arr))
+
+        # 提交事务
+        conn.commit()
+        logger.info(f"Image {splitted_image_id} uploaded to the database.")
+    except Exception as e:
+        logger.error(f"Error uploading image to the database: {e}")
+        conn.rollback()
+    finally:
+        # 关闭数据库连接
+        cursor.close()
         conn.close()

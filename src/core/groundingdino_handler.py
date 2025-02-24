@@ -10,7 +10,7 @@ from image_similarity import load_images_from_arrays, extract_feature, compare_s
 
 # 导入刚才创建的模块
 from image_processing import split_image_vertically, run_inference, prepare_transform
-from src.flask.split_images_route import upload_splitted_image_to_db
+from src.app.split_images_route import upload_splitted_image_to_db
 
 # 设置 Python 路径
 root_dir = Path(__file__).parent.resolve()
@@ -43,7 +43,7 @@ Exception: If any error occurs during image processing or inference.
 """
 def detect_clothes_in_image(image, FRAME_WINDOW=None):
     # Model Backbone
-    CONFIG_PATH = groundingdino_path / 'groundingdino' / 'config' / 'GroundingDINO_SwinT_OGC.py'
+    CONFIG_PATH = groundingdino_path / 'groundingdino' / 'config' / 'groundingdino_swint_ogc.py'
     WEIGHTS_PATH = root_dir / 'src' / 'checkpoints' / 'groundingdino_swint_ogc.pth'
 
     # 检查权重文件是否存在

@@ -32,7 +32,7 @@ def image_relay():
 
         image_feature = extract_feature(image_np)
 
-        cosine_similarity()
+        # cosine_similarity()
 
 
 

@@ -1,3 +1,4 @@
+import base64
 import logging
 
 import numpy as np
@@ -119,8 +120,8 @@ def read_splitted_images_by_original(original_image_id):
         conn.close()
 @api_sp.route("/split_image_upload", methods=["POST"])
 @cross_origin()
-def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, splitted_image_path: str,
-                                 original_image_id: str, bounding_box: str, image_format: str, vector: str):
+def upload_splitted_image_to_db(splitted_image_id: str, splitted_image_path: str,
+                                 original_image_id: str, bounding_box: str, image_format: str, vector: str, binary_data):
     """
     上传切割后的图像数据（Base64 编码）及图像特征到数据库。
 
@@ -133,8 +134,7 @@ def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, 
     - image_format (str): 图像的格式（如 'PNG'、'JPEG'）。
     - vector (str): 图像特征的 Base64 编码或其他形式。
     """
-    # 将图像数据转换为 Base64 编码
-    base64_image = numpy_to_base64(image_data, image_format)
+
 
     # 连接到数据库
     conn = get_connection()
@@ -145,7 +145,7 @@ def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, 
         cursor.execute("""
             INSERT INTO splitted_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, base64_image, vector))
+        """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector))
 
         # 提交事务
         conn.commit()

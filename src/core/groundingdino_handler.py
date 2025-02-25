@@ -1,4 +1,5 @@
 # groundingdino_handler.py
+import base64
 import sys
 import os
 from pathlib import Path
@@ -6,11 +7,13 @@ from PIL import Image
 import numpy as np
 from torch.utils.checkpoint import checkpoint
 
+import app
 from image_similarity import load_images_from_arrays, extract_feature, compare_similarities, load_single_image_feature_vector
 
 # 导入刚才创建的模块
 from image_processing import split_image_vertically, run_inference, prepare_transform
 from src.app.split_images_route import upload_splitted_image_to_db
+from src.utils.data_conversion import numpy_to_base64
 
 # 设置 Python 路径
 root_dir = Path(__file__).parent.resolve()
@@ -130,10 +133,13 @@ if __name__ == "__main__":
         img.save(save_path)
         saved_paths.append(save_path)
         print(f"已保存分割图片: {save_path}")
-        # 上传分割图片 By Kazami
-        vector = extract_feature(result_bboxes[idx])
-        upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png", vector)
 
+        # 上传分割图片 By Kazami
+        """vector = extract_feature(result_bboxes[idx])
+        base64_image = numpy_to_base64(result_bboxes[idx], "png")
+        binary_data = base64.b64decode(base64_image)
+        upload_splitted_image_to_db(idx,save_path,image_name,idx,"png", vector, binary_data)
+"""
 
 
     # 加载分割图像特征（从保存的文件加载）

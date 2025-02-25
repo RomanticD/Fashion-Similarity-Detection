@@ -83,3 +83,5 @@ def delete_record(image_id):
         return jsonify({"success": True, "message": f"删除记录成功（image_id={image_id}）"})
     else:
         return jsonify({"success": False, "message": "删除记录失败，检查后端日志"}), 500
+
+

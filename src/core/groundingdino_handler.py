@@ -131,7 +131,8 @@ if __name__ == "__main__":
         saved_paths.append(save_path)
         print(f"已保存分割图片: {save_path}")
         # 上传分割图片 By Kazami
-        upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png")
+        vector = extract_feature(result_bboxes[idx])
+        upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png", vector)
 
 
 

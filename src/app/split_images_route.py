@@ -11,6 +11,7 @@ from src.repo.split_images_repo import create_split_image_db, read_split_image_d
 from PIL import Image
 import io
 
+from src.utils.data_conversion import numpy_to_base64
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO)
@@ -117,36 +118,38 @@ def read_splitted_images_by_original(original_image_id):
     finally:
         conn.close()
 @api_sp.route("/split_image_upload", methods=["POST"])
-
-def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, splitted_image_path, original_image_id: str, bounding_box: str, image_format: str):
+@cross_origin()
+def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, splitted_image_path: str,
+                                 original_image_id: str, bounding_box: str, image_format: str, vector: str):
     """
-    上传切割后的图像数据到数据库。
+    上传切割后的图像数据（Base64 编码）及图像特征到数据库。
 
     参数:
     - image_data (np.ndarray): 输入图像的 NumPy 数组。
     - splitted_image_id (str): 切割后的图像 ID。
+    - splitted_image_path (str): 图像保存路径。
     - original_image_id (str): 原始图像的 ID。
     - bounding_box (str): 目标检测的边界框数据。
+    - image_format (str): 图像的格式（如 'PNG'、'JPEG'）。
+    - vector (str): 图像特征的 Base64 编码或其他形式。
     """
-    # 将 NumPy 数组转换为字节数据
-    img_byte_arr = io.BytesIO()
-    Image.fromarray(image_data).save(img_byte_arr, format=image_format)
-    img_byte_arr = img_byte_arr.getvalue()
+    # 将图像数据转换为 Base64 编码
+    base64_image = numpy_to_base64(image_data, image_format)
 
     # 连接到数据库
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-        # 插入切割后的图像数据
+        # 插入图像数据和特征到数据库
         cursor.execute("""
-            INSERT INTO splitted_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, img_byte_arr))
+            INSERT INTO splitted_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, base64_image, vector))
 
         # 提交事务
         conn.commit()
-        logger.info(f"Image {splitted_image_id} uploaded to the database.")
+        logger.info(f"Image {splitted_image_id} uploaded to the database along with its feature.")
     except Exception as e:
         logger.error(f"Error uploading image to the database: {e}")
         conn.rollback()

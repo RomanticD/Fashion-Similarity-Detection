@@ -32,3 +32,24 @@ def base64_to_numpy(base64_string):
     image_np = np.array(image)
 
     return image_np
+
+
+def numpy_to_base64(image_data: np.ndarray, image_format: str) -> str:
+    """
+    将图像数据（NumPy 数组）转换为 Base64 编码的字符串。
+
+    参数:
+    - image_data (np.ndarray): 输入图像的 NumPy 数组。
+    - image_format (str): 图像的格式。
+
+    返回:
+    - str: Base64 编码的图像字符串。
+    """
+    img = Image.fromarray(image_data)
+    img_byte_arr = BytesIO()
+    img.save(img_byte_arr, format=image_format)
+    img_byte_arr = img_byte_arr.getvalue()
+
+    # 将字节数据转换为 Base64 编码的字符串
+    base64_str = base64.b64encode(img_byte_arr).decode('utf-8')
+    return base64_str

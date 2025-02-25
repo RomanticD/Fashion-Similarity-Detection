@@ -6,10 +6,10 @@ from PIL import Image
 from flask import request, app, jsonify, Blueprint
 from flask_cors import cross_origin, CORS
 
-from src.core.image_similarity import extract_feature
+from src.core.image_similarity import extract_feature, cosine_similarity
 from src.repo.images_repo import create_image_feature_db, read_image_feature_db, update_image_feature_db, \
     delete_image_feature_db
-from src.utils.base64_to_numpy import base64_to_numpy
+from src.utils.data_conversion import base64_to_numpy
 
 # 定义一个 Blueprint 来组织路由
 api_rp = Blueprint('images_relay', __name__)
@@ -32,13 +32,13 @@ def image_relay():
 
         image_feature = extract_feature(image_np)
 
-
+        cosine_similarity()
 
 
 
         """
-        base64转numpy
-        图像调用获取特征值
+        base64转numpy.
+        图像调用获取特征值.
         特征值对比
         返回数据库最相似的
         

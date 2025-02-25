@@ -1,11 +1,26 @@
-from flask import request, app, jsonify, Flask
+import base64
+import logging
+
+import numpy as np
+from flask import request, app, jsonify, Flask, Blueprint
 from flask_cors import cross_origin, CORS
 
 from src.db.db_connect import get_connection
 from src.repo.split_images_repo import create_split_image_db, read_split_image_db, update_split_image_db, \
     delete_split_image_db
 
-@app.route("/splitted_images", methods=["POST", "OPTIONS"])
+from PIL import Image
+import io
+
+from src.utils.data_conversion import numpy_to_base64
+
+# 配置日志记录
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+api_sp = Blueprint('split_images', __name__)
+
+@api_sp.route("/splitted_images", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_splitted_image():
     """
@@ -33,7 +48,7 @@ def create_splitted_image():
     else:
         return jsonify({"success": False, "message": "创建子图失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["GET", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["GET", "OPTIONS"])
 @cross_origin()
 def read_splitted_image(splitted_image_id):
     """
@@ -46,7 +61,7 @@ def read_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "未查询到对应子图记录"}), 404
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["PUT", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["PUT", "OPTIONS"])
 @cross_origin()
 def update_splitted_image(splitted_image_id):
     """
@@ -67,7 +82,7 @@ def update_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "子图记录更新失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/<string:splitted_image_id>", methods=["DELETE", "OPTIONS"])
+@api_sp.route("/splitted_images/<string:splitted_image_id>", methods=["DELETE", "OPTIONS"])
 @cross_origin()
 def delete_splitted_image(splitted_image_id):
     """
@@ -80,7 +95,9 @@ def delete_splitted_image(splitted_image_id):
     else:
         return jsonify({"success": False, "message": "子图记录删除失败，请检查后端日志"}), 500
 
-@app.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
+
+@api_sp.route("/splitted_images/by_original/<string:original_image_id>", methods=["GET", "OPTIONS"])
+@cross_origin()
 def read_splitted_images_by_original(original_image_id):
     """
     根据 original_image_id 查询所有子图
@@ -100,4 +117,43 @@ def read_splitted_images_by_original(original_image_id):
         print("Error reading splitted_images by original:", e)
         return jsonify({"success": False, "message": "查询异常，请查看后端日志"}), 500
     finally:
+        conn.close()
+@api_sp.route("/split_image_upload", methods=["POST"])
+@cross_origin()
+def upload_splitted_image_to_db(splitted_image_id: str, splitted_image_path: str,
+                                 original_image_id: str, bounding_box: str, image_format: str, vector: str, binary_data):
+    """
+    上传切割后的图像数据（Base64 编码）及图像特征到数据库。
+
+    参数:
+    - image_data (np.ndarray): 输入图像的 NumPy 数组。
+    - splitted_image_id (str): 切割后的图像 ID。
+    - splitted_image_path (str): 图像保存路径。
+    - original_image_id (str): 原始图像的 ID。
+    - bounding_box (str): 目标检测的边界框数据。
+    - image_format (str): 图像的格式（如 'PNG'、'JPEG'）。
+    - vector (str): 图像特征的 Base64 编码或其他形式。
+    """
+
+
+    # 连接到数据库
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 插入图像数据和特征到数据库
+        cursor.execute("""
+            INSERT INTO splitted_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector))
+
+        # 提交事务
+        conn.commit()
+        logger.info(f"Image {splitted_image_id} uploaded to the database along with its feature.")
+    except Exception as e:
+        logger.error(f"Error uploading image to the database: {e}")
+        conn.rollback()
+    finally:
+        # 关闭数据库连接
+        cursor.close()
         conn.close()

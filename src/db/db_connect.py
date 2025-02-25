@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import pymysql
 import json
+import base64
+import uuid
+import os
 
 app = Flask(__name__)
 # 允许所有路由跨域，如果你只想配置特定路由，也可以局部使用 @cross_origin()
@@ -11,10 +14,10 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 def get_connection():
     """获取数据库连接"""
     connection = pymysql.connect(
-        host="database-1.c5282akgwxld.ap-southeast-2.rds.amazonaws.com",
+        host="rm-cn-gh645bd4t000n17o.rwlb.rds.aliyuncs.com",
         port=3306,
-        user="admin",
-        password="112345678",
+        user="fashion",
+        password="Fashion123",
         database="fashion_db",
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor
@@ -228,7 +231,7 @@ def update_record(image_id):
     new_path = data.get("new_path")
     new_features = data.get("new_features")
 
-    if not new_path or not new_features:
+    if not new_path and not new_features:
         return jsonify({"success": False, "message": "请填写完整信息！"}), 400
 
     success = update_image_feature_db(image_id, new_path, new_features)
@@ -348,6 +351,70 @@ def read_splitted_images_by_original(original_image_id):
         return jsonify({"success": False, "message": "查询异常，请查看后端日志"}), 500
     finally:
         conn.close()
+
+# --------------- 上传 Base64 图片 -------------------
+
+# 指定图片存储目录
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # 确保文件夹存在
+@app.route("/upload", methods=["POST"])
+def upload_image():
+    print("收到上传请求")  # 先检查 Flask 是否收到请求
+    print("📂 图片存储目录:", UPLOAD_FOLDER)
+    try:
+        data = request.json
+        base64_image = data.get("image")
+
+        if not base64_image:
+            return jsonify({"message": "没有收到图片数据", "success": False}), 400
+
+        # 解析 Base64 数据
+        try:
+            header, encoded = base64_image.split(",", 1)  # 去掉 "data:image/png;base64,"
+            file_extension = header.split("/")[1].split(";")[0]  # 提取文件扩展名 (png, jpg)
+            image_data = base64.b64decode(encoded)
+        except Exception as e:
+            return jsonify({"message": f"Base64 解析错误: {str(e)}", "success": False}), 400
+
+        # 生成唯一 image_id 和文件名
+        image_id = str(uuid.uuid4())[:8]  # 生成8位唯一 ID
+        image_filename = f"{image_id}.{file_extension}"
+        image_path = os.path.join(UPLOAD_FOLDER, image_filename)
+
+        # 保存图片到 uploads 目录
+        try:
+            with open(image_path, "wb") as f:
+                f.write(image_data)
+            print(f"图片保存成功: {image_path}")  # 确保代码执行
+        except IOError as e:
+            print(f"图片保存失败: {str(e)}")
+            return jsonify({"message": f"文件存储失败: {str(e)}", "success": False}), 500
+
+
+# 存入数据库
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                sql = """
+                    INSERT INTO image_features (image_id, image_path, features)
+                    VALUES (%s, %s, %s)
+                """
+                cursor.execute(sql, (image_id, image_path, ""))  # 用 "" 代替 NULL
+                # cursor.execute(sql, (image_id, image_path, None))  # features 暂时设为空
+            conn.commit()
+        finally:
+            conn.close()
+
+        return jsonify({
+            "message": "图片上传成功",
+            "image_id": image_id,
+            "path": image_path,
+            "success": True
+        })
+
+    except Exception as e:
+        return jsonify({"message": f"上传失败: {str(e)}", "success": False}), 500
+
 
 # --------------- 主程序入口 ---------------
 if __name__ == "__main__":

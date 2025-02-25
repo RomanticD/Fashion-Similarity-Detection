@@ -1,5 +1,7 @@
 from src.db.db_connect import get_connection
 
+
+
 def create_split_image_db(splitted_image_id, splitted_image_path, original_image_id, bounding_box=None):
     """
     向 splitted_images 表插入一条记录。

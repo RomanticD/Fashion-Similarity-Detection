@@ -1,10 +1,14 @@
-from flask import request, app, jsonify, Flask
+# images_route.py
+from flask import request, app, jsonify, Blueprint
 from flask_cors import cross_origin, CORS
 
 from src.repo.images_repo import create_image_feature_db, read_image_feature_db, update_image_feature_db, \
     delete_image_feature_db
 
-@app.route("/image_features", methods=["POST", "OPTIONS"])
+# 定义一个 Blueprint 来组织路由
+api_bp = Blueprint('images_route', __name__)
+
+@api_bp.route("/image_features", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_record():
     """
@@ -30,7 +34,7 @@ def create_record():
     else:
         return jsonify({"success": False, "message": "创建记录失败，检查后端日志"}), 500
 
-@app.route("/image_features/<string:image_id>", methods=["GET", "OPTIONS"])
+@api_bp.route("/image_features/<string:image_id>", methods=["GET", "OPTIONS"])
 @cross_origin()
 def read_record(image_id):
     """
@@ -43,7 +47,7 @@ def read_record(image_id):
     else:
         return jsonify({"success": False, "message": "没有查询到相关记录"}), 404
 
-@app.route("/image_features/<string:image_id>", methods=["PUT", "OPTIONS"])
+@api_bp.route("/image_features/<string:image_id>", methods=["PUT", "OPTIONS"])
 @cross_origin()
 def update_record(image_id):
     """
@@ -67,7 +71,7 @@ def update_record(image_id):
     else:
         return jsonify({"success": False, "message": "更新记录失败，检查后端日志"}), 500
 
-@app.route("/image_features/<string:image_id>", methods=["DELETE", "OPTIONS"])
+@api_bp.route("/image_features/<string:image_id>", methods=["DELETE", "OPTIONS"])
 @cross_origin()
 def delete_record(image_id):
     """
@@ -79,3 +83,5 @@ def delete_record(image_id):
         return jsonify({"success": True, "message": f"删除记录成功（image_id={image_id}）"})
     else:
         return jsonify({"success": False, "message": "删除记录失败，检查后端日志"}), 500
+
+

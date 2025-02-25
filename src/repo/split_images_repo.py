@@ -110,33 +110,51 @@ def save_to_db(splitted_image_id, splitted_image_path, original_image_id, boundi
         cursor.close()
         conn.close()
 
+
 def select_all_vectors():
+    print("准备获取链接")
     conn = get_connection()
+    print("成功获取链接")
     try:
+        print("1")
         with conn.cursor() as cursor:
+            print("2")
             cursor.execute("SELECT id, vector FROM splitted_images")
             rows = cursor.fetchall()
-        conn.commit()
-        return rows
+            # 如果没有查询到数据，返回空列表
+            if not rows:
+                print("No data found in the 'splitted_images' table.")
+                return []
+
+            return rows
     except Exception as e:
-        print("Error select:", e)
-        conn.rollback()
-        return False
+        print(f"Error during select: {e}")
+        conn.rollback()  # 回滚事务
+        return []  # 发生异常时返回空列表而不是 False
     finally:
-        conn.close()
+        conn.close()  # 确保连接被关闭
+
 
 def select_image_data_by_id(id):
     conn = get_connection()
+    if not conn:
+        current_app.logger.error("Failed to connect to the database")
+        return None
+
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT splitted_image_data FROM splitted_images WHERE id = %s", (id,))
-            row = cursor.fetchone()  # 获取单条记录
-            if row:
-                return row[0]  # 返回图像数据（第一列数据）
-            else:
-                return None  # 如果没有找到该 id 对应的记录，返回 None
+            sql = "SELECT splitted_image_data FROM splitted_images WHERE id = %s"
+            current_app.logger.debug(f"Executing SQL: {sql} with id={id}")
+            cursor.execute(sql, (id,))
+            row = cursor.fetchone()
+
+            if not row:
+                current_app.logger.warning(f"No record found for id={id}")
+                return None
+            return row
+
     except Exception as e:
-        current_app.logger.error(f"Error selecting image data by id {id}: {str(e)}")
+        current_app.logger.error(f"Error selecting image data by id {id}: {str(e)}", exc_info=True)
         conn.rollback()
         return None
     finally:

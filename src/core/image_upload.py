@@ -21,7 +21,7 @@ def upload_splitted_image_to_db(image_data: np.ndarray, splitted_image_id: str, 
     - original_image_id (str): 原始图像的 ID。
     - bounding_box (str): 目标检测的边界框数据。
     - image_format (str): 图像的格式（如 'PNG'、'JPEG'）。
-    - vector (str): 图像特征的 Base64 编码或其他形式。
+    - vector (str): 图像特征的形式。
     """
     # 将图像数据转换为 Base64 编码
     base64_image = numpy_to_base64(image_data, image_format)

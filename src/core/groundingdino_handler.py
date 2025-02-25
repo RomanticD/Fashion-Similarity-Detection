@@ -133,7 +133,7 @@ if __name__ == "__main__":
         # 上传分割图片 By Kazami
         vector = extract_feature(result_bboxes[idx])
         upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png",vector)
-
+        # idx修改
 
 
     # 加载分割图像特征（从保存的文件加载）

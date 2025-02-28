@@ -1,6 +1,14 @@
 # Configuration
 
 ## Install requirements
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+(Optional) With Homebrew installed Python 3.11+
+```bash
+pip config set global.break-system-packages true
+```
 run `pip install -r requirements.txt` to install all the required packages.
 
 ## Download Checkpoints
@@ -27,3 +35,4 @@ To start the backend server, run the following commands in your terminal:
 
 ```bash
 python -m src.run
+```

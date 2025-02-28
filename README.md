@@ -21,3 +21,9 @@ Also, when you run project,there will be a model automatically downloaded to a d
 ## Front-end Repo
 [https://github.com/goldenSTAME/similarity-detection](https://github.com/goldenSTAME/similarity-detection)
 
+# Steps to Run the Code
+
+To start the backend server, run the following commands in your terminal:
+
+```bash
+python -m src.ru

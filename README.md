@@ -26,4 +26,4 @@ Also, when you run project,there will be a model automatically downloaded to a d
 To start the backend server, run the following commands in your terminal:
 
 ```bash
-python -m src.ru
+python -m src.run

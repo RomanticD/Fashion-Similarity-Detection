@@ -1,4 +1,4 @@
-# groundingdino_handler.py
+# src/core/groundingdino_handler.py
 import sys
 import os
 from pathlib import Path
@@ -6,11 +6,10 @@ from PIL import Image
 import numpy as np
 from torch.utils.checkpoint import checkpoint
 
-from image_similarity import load_images_from_arrays, extract_feature, compare_similarities, load_single_image_feature_vector
-
-# 导入刚才创建的模块
-from image_processing import split_image_vertically, run_inference, prepare_transform
-from src.core.image_upload import upload_splitted_image_to_db
+from src.core.image_similarity import load_images_from_arrays, extract_feature, compare_similarities, \
+    load_single_image_feature_vector
+from src.core.image_processing import split_image_vertically, run_inference, prepare_transform
+from src.core.image_upload import process_and_upload_image
 
 # 设置 Python 路径
 root_dir = Path(__file__).parent.resolve()
@@ -23,24 +22,7 @@ sys.path.append(str(groundingdino_path))
 # 导入必要的库
 from GroundingDINO.groundingdino.util.inference import load_model
 
-"""
-Detects clothing regions in the input image and returns bounding boxes of detected clothes.
 
-This function loads the GroundingDINO model, processes the input image by splitting it into segments,
-runs inference on each segment to detect clothing, and returns the bounding boxes of the detected clothes.
-
-Parameters:
-image (np.ndarray): Input image as a numpy array, typically obtained by converting a PIL image.
-FRAME_WINDOW (optional): Streamlit window object for displaying the processed image during detection.
-
-Returns:
-list: A list of bounding boxes (as numpy arrays) for the detected clothing regions. 
-      Returns an empty list if no clothes are detected or an error occurs.
-
-Raises:
-FileNotFoundError: If the weights file is not found.
-Exception: If any error occurs during image processing or inference.
-"""
 def detect_clothes_in_image(image, FRAME_WINDOW=None):
     # Model Backbone
     CONFIG_PATH = groundingdino_path / 'groundingdino' / 'config' / 'GroundingDINO_SwinT_OGC.py'
@@ -74,7 +56,6 @@ def detect_clothes_in_image(image, FRAME_WINDOW=None):
         return []
 
 
-
 def clear_directory(data_dir):
     # 确保路径是一个目录
     if data_dir.exists() and data_dir.is_dir():
@@ -86,6 +67,7 @@ def clear_directory(data_dir):
                 file.rmdir()  # 删除空文件夹
     else:
         print(f"{data_dir} 不是一个有效的目录。")
+
 
 # 示例调用
 if __name__ == "__main__":
@@ -117,25 +99,24 @@ if __name__ == "__main__":
     result_bboxes = detect_clothes_in_image(image_np)
 
     # --------------------------
-    # 新增代码：保存分割图片到data目录
+    # 创建数据目录并处理图像
     # --------------------------
     data_dir = root_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)  # 自动创建目录
 
+    # 创建原始图像对应的子目录
+    image_dir = data_dir / image_name
+    image_dir.mkdir(parents=True, exist_ok=True)
+
     saved_paths = []
     for idx, img_array in enumerate(result_bboxes):
-        img = Image.fromarray(img_array)
         filename = f"segment_{idx}.png"
-        save_path = data_dir / filename
-        img.save(save_path)
-        saved_paths.append(save_path)
+        save_path = image_dir / filename  # 保存到对应的子目录
+
+        # 处理并上传图像 - 调用独立的函数
+        processed_path = process_and_upload_image(img_array, idx, save_path, image_name)
+        saved_paths.append(processed_path)
         print(f"已保存分割图片: {save_path}")
-        # 上传分割图片 By Kazami
-        vector = extract_feature(result_bboxes[idx])
-        upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png",vector)
-        # idx修改
-
-
     # 加载分割图像特征（从保存的文件加载）
     segmented_features = {}
     for path in saved_paths:

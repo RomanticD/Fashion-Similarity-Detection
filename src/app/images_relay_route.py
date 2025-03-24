@@ -1,7 +1,7 @@
 import base64
 import json
 import logging
-
+import time
 import numpy as np
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
@@ -20,79 +20,115 @@ logger = logging.getLogger(__name__)
 @api_rp.route("/relay_image", methods=["POST"])
 @cross_origin()
 def image_relay():
+    # 记录函数开始时间
+    start_time = time.time()
+
     try:
         # 获取传递的 JSON 数据
         data = request.get_json()
-        # print(f"Received JSON data: {data}")  # 打印接收到的数据
 
         num = data.get('num')  # 获取返回的条数
         base64_image = data.get('image_base64')  # 获取 Base64 图像数据
         if not base64_image:
-            print("Error: No 'image_base64' field in the request data.")
-            return jsonify({"error": "'image_base64' field is required"}), 400  # 返回统一的错误消息
+            print("错误: 请求数据中没有 'image_base64' 字段")
+            return jsonify({"error": "'image_base64' 字段是必需的"}), 400
 
-        print(f"返回条数: {num}, 收到的image_base64: {base64_image[:30]}...")  # 只打印部分 Base64 图像数据
+        print(f"返回条数: {num}, 收到的 image_base64: {base64_image[:30]}...")
+
+        # 记录图像转换开始时间
+        convert_start = time.time()
 
         # 将 Base64 字符串转换为 NumPy 数组
         image_np = base64_to_numpy(base64_image)
-        print("Image successfully converted to NumPy array.")
+        print(f"图像转换耗时: {time.time() - convert_start:.4f}秒")
+
+        # 记录特征提取开始时间
+        feature_start = time.time()
 
         # 提取图像特征
         image_feature = extract_feature(image_np)
-        print(f"成功转换上传图片为向量: {image_feature[:10]}...")  # 只打印部分特征数据
+        print(f"特征提取耗时: {time.time() - feature_start:.4f}秒")
+
+        # 记录向量获取开始时间
+        db_start = time.time()
 
         # 获取数据库中所有图像的向量
         rows = select_all_vectors()
+        print(f"从数据库获取向量耗时: {time.time() - db_start:.4f}秒")
         print(f"共从数据库获取到 {len(rows)} 条向量数据")
 
-        data = []
+        # 记录向量处理开始时间
+        process_start = time.time()
+
+        # 批量处理向量数据
+        vectors_data = []
         for row in rows:
             try:
-                print(f"处理记录id: {row['id']}")
-                vector_str = row['vector']  # 提取字符串
-                vector_list = json.loads(vector_str)
-                print(f"从记录{row['id']} 提取vector 成功")
-                vector_array = np.array(vector_list)
-                data.append({'id': row['id'], 'vector': vector_array})
+                vector_list = json.loads(row['vector'])
+                vectors_data.append({
+                    'id': row['id'],
+                    'vector': np.array(vector_list)
+                })
             except Exception as e:
-                print(f"Error processing row {row[0]}: {e}")
+                print(f"处理记录 {row['id']} 时出错: {e}")
 
-        print(f"处理为相似度字典...........")
+        print(f"向量处理耗时: {time.time() - process_start:.4f}秒")
 
-        # 计算与目标图像的相似度
-        similarities = [
-            (item['id'], cosine_similarity(image_feature, item['vector'])) for item in data
-        ]
-        print(f"Computed similarities for {len(similarities)} images.")
+        # 记录相似度计算开始时间
+        sim_start = time.time()
+
+        # 使用向量化操作计算相似度
+        similarities = []
+        for item in vectors_data:
+            sim = cosine_similarity(image_feature, item['vector'])
+            similarities.append((item['id'], sim))
 
         # 按相似度降序排列
         similarities.sort(key=lambda x: x[1], reverse=True)
-        print("Sorted similarities in descending order.")
 
+        # 只保留前 num 个结果
+        top_similarities = similarities[:num]
+        print(f"相似度计算和排序耗时: {time.time() - sim_start:.4f}秒")
+
+        # 记录图像获取开始时间
+        image_fetch_start = time.time()
+
+        # 获取相似图像的 ID 列表
+        top_ids = [id for id, _ in top_similarities]
+
+        # 创建结果列表
         result = []
-        for idx, sim in similarities[:num]:
-            print(f"Processing image with id: {idx} and similarity: {sim:.4f}")
+        for idx, sim in top_similarities:
             # 根据 id 查询对应的图像数据
-            binary_string = select_image_data_by_id(idx)['splitted_image_data']
-            base64_string = base64.b64encode(binary_string).decode("utf-8")
-            '''base64_string = select_image_data_by_id(idx)'''
+            image_data = select_image_data_by_id(idx)
+            if image_data and 'splitted_image_data' in image_data:
+                binary_string = image_data['splitted_image_data']
+                base64_string = base64.b64encode(binary_string).decode("utf-8")
 
-            if base64_string:
-                print(f"Found base64 image data for id {idx}.")
+                result.append({
+                    "id": idx,
+                    "similarity": sim,
+                    "processed_image_base64": base64_string
+                })
             else:
-                print(f"No image data found for id {idx}.")
+                print(f"未找到 ID 为 {idx} 的图像数据")
+                result.append({
+                    "id": idx,
+                    "similarity": sim,
+                    "processed_image_base64": None
+                })
 
-            result.append({
-                "id": idx,
-                "similarity": sim,
-                "processed_image_base64": base64_string if base64_string else None  # 设置图像数据或 None
-            })
+        print(f"获取图像数据耗时: {time.time() - image_fetch_start:.4f}秒")
 
-        print(f"Returning {len(result)} results.")
-        print(jsonify(result))
-        # logger.info(f"Response JSON: {jsonify(result).get_data(as_text=True)}")
+        # 计算总运行时间
+        total_time = time.time() - start_time
+        print(f"总运行时间: {total_time:.4f}秒")
+
         return jsonify(result)
 
     except Exception as e:
-        print(f"Error occurred: {e}")
-        return jsonify({"error": str(e)}), 500
+        # 计算总运行时间（即使发生错误）
+        total_time = time.time() - start_time
+        print(f"发生错误! 总运行时间: {total_time:.4f}秒")
+        print(f"错误详情: {e}")
+        return jsonify({"error": str(e), "execution_time": total_time}), 500

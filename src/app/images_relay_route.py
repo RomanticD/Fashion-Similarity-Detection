@@ -7,6 +7,7 @@ from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 
 from src.core.image_similarity import extract_feature, cosine_similarity
+from src.db.db_connect import get_connection
 from src.repo.split_images_repo import select_all_vectors, select_image_data_by_id
 from src.utils.data_conversion import base64_to_numpy
 
@@ -17,117 +18,157 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def select_multiple_image_data_by_ids(ids):
+    """
+    Fetch multiple image records by their IDs
+
+    Parameters:
+    ids (list): List of image IDs to fetch
+
+    Returns:
+    dict: Dictionary mapping ID to image data
+    """
+    if not ids:
+        return {}
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            placeholders = ', '.join(['%s'] * len(ids))
+            sql = f"SELECT id, splitted_image_data FROM splitted_images WHERE id IN ({placeholders})"
+            cursor.execute(sql, ids)
+            rows = cursor.fetchall()
+
+            # Convert to dictionary for O(1) lookup
+            result = {row['id']: row for row in rows}
+            return result
+    except Exception as e:
+        print(f"Error fetching multiple image data: {e}")
+        return {}
+    finally:
+        conn.close()
+
+def batch_cosine_similarity(query_vector, all_vectors):
+    """
+    Calculate cosine similarity between one query vector and multiple vectors
+
+    Parameters:
+    query_vector (np.ndarray): Shape (n_features,)
+    all_vectors (np.ndarray): Shape (n_samples, n_features)
+
+    Returns:
+    np.ndarray: Shape (n_samples,) containing similarity scores
+    """
+    # Normalize query vector
+    query_norm = np.linalg.norm(query_vector)
+    if query_norm == 0:
+        return np.zeros(all_vectors.shape[0])
+    query_normalized = query_vector / query_norm
+
+    # Normalize all vectors (along axis 1)
+    vectors_norm = np.linalg.norm(all_vectors, axis=1, keepdims=True)
+    # Handle zero norm vectors to avoid division by zero
+    vectors_norm[vectors_norm == 0] = 1.0
+    vectors_normalized = all_vectors / vectors_norm
+
+    # Calculate dot product which gives cosine similarity for normalized vectors
+    similarities = np.dot(vectors_normalized, query_normalized)
+
+    return similarities
+
+
 @api_rp.route("/relay_image", methods=["POST"])
 @cross_origin()
 def image_relay():
-    # 记录函数开始时间
     start_time = time.time()
 
     try:
-        # 获取传递的 JSON 数据
         data = request.get_json()
+        num = data.get('num', 5)  # Default to 5 if not specified
+        base64_image = data.get('image_base64')
 
-        num = data.get('num')  # 获取返回的条数
-        base64_image = data.get('image_base64')  # 获取 Base64 图像数据
         if not base64_image:
             print("错误: 请求数据中没有 'image_base64' 字段")
             return jsonify({"error": "'image_base64' 字段是必需的"}), 400
 
         print(f"返回条数: {num}, 收到的 image_base64: {base64_image[:30]}...")
 
-        # 记录图像转换开始时间
+        # Image conversion
         convert_start = time.time()
-
-        # 将 Base64 字符串转换为 NumPy 数组
         image_np = base64_to_numpy(base64_image)
         print(f"图像转换耗时: {time.time() - convert_start:.4f}秒")
 
-        # 记录特征提取开始时间
+        # Feature extraction
         feature_start = time.time()
-
-        # 提取图像特征
         image_feature = extract_feature(image_np)
-        print(f"特征提取耗时: {time.time() - feature_start:.4f}秒")
 
-        # 记录向量获取开始时间
+        # Database fetch
         db_start = time.time()
-
-        # 获取数据库中所有图像的向量
         rows = select_all_vectors()
         print(f"从数据库获取向量耗时: {time.time() - db_start:.4f}秒")
         print(f"共从数据库获取到 {len(rows)} 条向量数据")
 
-        # 记录向量处理开始时间
-        process_start = time.time()
+        if not rows:
+            return jsonify([])
 
-        # 批量处理向量数据
-        vectors_data = []
+        # Process vectors
+        process_start = time.time()
+        vector_arrays = []
+        vector_ids = []
+
         for row in rows:
             try:
                 vector_list = json.loads(row['vector'])
-                vectors_data.append({
-                    'id': row['id'],
-                    'vector': np.array(vector_list)
-                })
+                vector_arrays.append(vector_list)
+                vector_ids.append(row['id'])
             except Exception as e:
                 print(f"处理记录 {row['id']} 时出错: {e}")
 
+        vectors_matrix = np.array(vector_arrays)
         print(f"向量处理耗时: {time.time() - process_start:.4f}秒")
 
-        # 记录相似度计算开始时间
+        # Calculate similarities
         sim_start = time.time()
-
-        # 使用向量化操作计算相似度
-        similarities = []
-        for item in vectors_data:
-            sim = cosine_similarity(image_feature, item['vector'])
-            similarities.append((item['id'], sim))
-
-        # 按相似度降序排列
-        similarities.sort(key=lambda x: x[1], reverse=True)
-
-        # 只保留前 num 个结果
-        top_similarities = similarities[:num]
+        similarities = batch_cosine_similarity(image_feature, vectors_matrix)
+        similarity_pairs = list(zip(vector_ids, similarities))
+        similarity_pairs.sort(key=lambda x: x[1], reverse=True)
+        top_similarities = similarity_pairs[:num]
         print(f"相似度计算和排序耗时: {time.time() - sim_start:.4f}秒")
 
-        # 记录图像获取开始时间
+        # Fetch image data in batch
         image_fetch_start = time.time()
-
-        # 获取相似图像的 ID 列表
         top_ids = [id for id, _ in top_similarities]
 
-        # 创建结果列表
+        # Add this function to split_images_repo.py
+        all_image_data = select_multiple_image_data_by_ids(top_ids)
+
         result = []
         for idx, sim in top_similarities:
-            # 根据 id 查询对应的图像数据
-            image_data = select_image_data_by_id(idx)
+            image_data = all_image_data.get(idx)
             if image_data and 'splitted_image_data' in image_data:
                 binary_string = image_data['splitted_image_data']
                 base64_string = base64.b64encode(binary_string).decode("utf-8")
 
                 result.append({
                     "id": idx,
-                    "similarity": sim,
+                    "similarity": float(sim),  # Convert numpy float to Python float
                     "processed_image_base64": base64_string
                 })
             else:
                 print(f"未找到 ID 为 {idx} 的图像数据")
                 result.append({
                     "id": idx,
-                    "similarity": sim,
+                    "similarity": float(sim),
                     "processed_image_base64": None
                 })
 
         print(f"获取图像数据耗时: {time.time() - image_fetch_start:.4f}秒")
-
-        # 计算总运行时间
         total_time = time.time() - start_time
         print(f"总运行时间: {total_time:.4f}秒")
 
         return jsonify(result)
 
     except Exception as e:
-        # 计算总运行时间（即使发生错误）
         total_time = time.time() - start_time
         print(f"发生错误! 总运行时间: {total_time:.4f}秒")
         print(f"错误详情: {e}")

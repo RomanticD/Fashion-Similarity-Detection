@@ -112,13 +112,9 @@ def save_to_db(splitted_image_id, splitted_image_path, original_image_id, boundi
 
 
 def select_all_vectors():
-    print("准备获取链接")
     conn = get_connection()
-    print("成功获取链接")
     try:
-        print("1")
         with conn.cursor() as cursor:
-            print("2")
             cursor.execute("SELECT id, vector FROM splitted_images")
             rows = cursor.fetchall()
             # 如果没有查询到数据，返回空列表

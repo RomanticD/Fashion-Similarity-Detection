@@ -1,3 +1,4 @@
+# image_similarity.py
 import torch
 import torchvision.models as models
 from torchvision.models import ResNet50_Weights

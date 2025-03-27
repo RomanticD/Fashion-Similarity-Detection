@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 import time
 import tempfile
+import threading
 
 
 class ImageSimilarity:
@@ -34,6 +35,9 @@ class ImageSimilarity:
                 std=[0.229, 0.224, 0.225]
             )
         ])
+
+        # Add a lock for thread safety
+        self._model_lock = threading.Lock()
 
     def extract_feature(self, img_input):
         """
@@ -63,8 +67,10 @@ class ImageSimilarity:
         # Preprocess and extract features
         img_t = self.transform(img).unsqueeze(0)
 
-        with torch.no_grad():
-            feat = self.model(img_t)
+        # Use lock to ensure thread safety when using the model
+        with self._model_lock:
+            with torch.no_grad():
+                feat = self.model(img_t)
 
         feature = feat.squeeze(0).numpy()
         print(f"Feature extraction time: {time.time() - start_time:.4f}s")

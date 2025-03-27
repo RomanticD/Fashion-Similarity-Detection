@@ -4,9 +4,8 @@ import os
 from pathlib import Path
 from PIL import Image
 import numpy as np
-from torch.utils.checkpoint import checkpoint
 
-from src.core.image_similarity import load_images_from_arrays, extract_feature, compare_similarities, \
+from src.core.image_similarity import compare_similarities, \
     load_single_image_feature_vector
 from src.core.image_processing import split_image_vertically, run_inference, prepare_transform
 from src.core.image_upload import process_and_upload_image
@@ -112,10 +111,7 @@ if __name__ == "__main__":
     for idx, img_array in enumerate(result_bboxes):
         filename = f"segment_{idx}.png"
         save_path = image_dir / filename  # 保存到对应的子目录
-
-        # 处理并上传图像 - 调用独立的函数
-        processed_path = process_and_upload_image(img_array, idx, save_path, image_name)
-        saved_paths.append(processed_path)
+        saved_paths.append(save_path)
         print(f"已保存分割图片: {save_path}")
     # 加载分割图像特征（从保存的文件加载）
     segmented_features = {}

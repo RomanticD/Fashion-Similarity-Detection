@@ -134,24 +134,54 @@ def select_all_vectors():
 def select_image_data_by_id(id):
     conn = get_connection()
     if not conn:
-        current_app.logger.error("Failed to connect to the database")
+        logger.error("Failed to connect to the database")
         return None
 
     try:
         with conn.cursor() as cursor:
             sql = "SELECT splitted_image_data FROM splitted_images WHERE id = %s"
-            current_app.logger.debug(f"Executing SQL: {sql} with id={id}")
+            logger.debug(f"Executing SQL: {sql} with id={id}")
             cursor.execute(sql, (id,))
             row = cursor.fetchone()
 
             if not row:
-                current_app.logger.warning(f"No record found for id={id}")
+                logger.warning(f"No record found for id={id}")
                 return None
             return row
 
     except Exception as e:
-        current_app.logger.error(f"Error selecting image data by id {id}: {str(e)}", exc_info=True)
+        logger.error(f"Error selecting image data by id {id}: {str(e)}", exc_info=True)
         conn.rollback()
         return None
+    finally:
+        conn.close()
+
+def select_multiple_image_data_by_ids(ids):
+    """
+    Fetch multiple image records by their IDs
+
+    Parameters:
+    ids (list): List of image IDs to fetch
+
+    Returns:
+    dict: Dictionary mapping ID to image data
+    """
+    if not ids:
+        return {}
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            placeholders = ', '.join(['%s'] * len(ids))
+            sql = f"SELECT id, splitted_image_data FROM splitted_images WHERE id IN ({placeholders})"
+            cursor.execute(sql, ids)
+            rows = cursor.fetchall()
+
+            # Convert to dictionary for O(1) lookup
+            result = {row['id']: row for row in rows}
+            return result
+    except Exception as e:
+        print(f"Error fetching multiple image data: {e}")
+        return {}
     finally:
         conn.close()

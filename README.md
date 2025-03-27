@@ -67,13 +67,24 @@ pip install -r requirements.txt
 # (See "Set up Database Connection" section)
 ```
 
-### 2. Build Vector Index
+### 2. Process Images with GroundingDINO
+```bash
+# First, process and upload images using GroundingDINO
+python -m src.db.uploads.batch_upload
+```
+
+This step will:
+- Use GroundingDINO to detect and segment clothing items in images
+- Extract feature vectors from segmented images
+- Upload the segmented images and their feature vectors to the database
+
+### 3. Build Vector Index
 ```bash
 # Build the vector index for fast similarity search
 python -m src.utils.build_index
 ```
 
-### 3. Start the Backend Server
+### 4. Start the Backend Server
 ```bash
 # Start the Flask development server
 python -m src.run

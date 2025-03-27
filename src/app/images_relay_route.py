@@ -6,8 +6,8 @@ import numpy as np
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 
-from src.core.image_similarity import extract_feature
-from src.core.vector_index import search_similar_images
+from src.core.image_similarity import ImageSimilarity
+from src.core.vector_index import VectorIndex
 from src.db.db_connect import get_connection
 from src.repo.split_images_repo import select_multiple_image_data_by_ids
 from src.utils.data_conversion import base64_to_numpy
@@ -17,6 +17,10 @@ api_rp = Blueprint('images_relay', __name__)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize instances
+similarity = ImageSimilarity()
+vector_index = VectorIndex()
 
 @api_rp.route("/relay_image", methods=["POST"])
 @cross_origin()
@@ -41,12 +45,12 @@ def image_relay():
 
         # Feature extraction
         feature_start = time.time()
-        image_feature = extract_feature(image_np)
+        image_feature = similarity.extract_feature(image_np)
         print(f"Feature extraction time: {time.time() - feature_start:.4f} seconds")
 
         # Find similar images using vector index
         search_start = time.time()
-        similarity_pairs = search_similar_images(image_feature, num)
+        similarity_pairs = vector_index.search_similar_images(image_feature, num)
         print(f"Vector search time: {time.time() - search_start:.4f} seconds")
 
         if not similarity_pairs:

@@ -1,3 +1,4 @@
+# src/core/vector_index.py
 import numpy as np
 import json
 import logging
@@ -17,154 +18,189 @@ INDEX_FILE = ROOT_DIR / "vector_nn_index.pkl"
 ID_MAP_FILE = ROOT_DIR / "vector_id_map.json"
 
 
-def build_vector_index():
+class VectorIndex:
     """
-    Build a Nearest Neighbors index from vectors stored in the database
+    A class for managing vector indices for fast similarity search.
     """
-    logger.info("Building vector index from database vectors...")
 
-    # Fetch all vectors from the database
-    rows = select_all_vectors()
-    if not rows:
-        logger.error("No vectors found in the database")
-        return None, None
+    def __init__(self, index_file=None, id_map_file=None):
+        """
+        Initialize the vector index manager.
 
-    logger.info(f"Retrieved {len(rows)} vectors from database")
+        Args:
+            index_file (Path, optional): Path to the index file.
+            id_map_file (Path, optional): Path to the ID mapping file.
+        """
+        self.index_file = index_file or INDEX_FILE
+        self.id_map_file = id_map_file or ID_MAP_FILE
+        self.index = None
+        self.ids = None
+        self.vectors = None
 
-    # Extract vectors and IDs
-    vectors = []
-    ids = []
+    def build_index(self):
+        """
+        Build a nearest neighbors index from vectors in the database.
 
-    for row in rows:
+        Returns:
+            tuple: (index, ids, vectors) or (None, None, None) if no vectors found.
+        """
+        logger.info("Building vector index from database vectors...")
+
+        # Fetch all vectors from the database
+        rows = select_all_vectors()
+        if not rows:
+            logger.error("No vectors found in the database")
+            return None, None, None
+
+        logger.info(f"Retrieved {len(rows)} vectors from database")
+
+        # Extract vectors and IDs
+        vectors = []
+        ids = []
+
+        for row in rows:
+            try:
+                vector_list = json.loads(row['vector'])
+                vectors.append(vector_list)
+                ids.append(int(row['id']))
+            except Exception as e:
+                logger.error(f"Error processing record {row['id']}: {e}")
+
+        if not vectors:
+            logger.error("No valid vectors could be processed")
+            return None, None, None
+
+        # Convert to numpy arrays
+        vector_array = np.array(vectors, dtype=np.float32)
+
+        # Normalize vectors for cosine similarity
+        norms = np.linalg.norm(vector_array, axis=1, keepdims=True)
+        # Handle zero norms
+        norms[norms == 0] = 1.0
+        normalized_vectors = vector_array / norms
+
+        # Create index for cosine similarity
+        index = NearestNeighbors(
+            n_neighbors=min(20, len(vectors)),
+            algorithm='auto',
+            metric='cosine'
+        )
+        index.fit(normalized_vectors)
+
+        logger.info(f"Added {len(vectors)} vectors to Nearest Neighbors index")
+
+        # Save ID mapping
+        with open(self.id_map_file, 'w') as f:
+            json.dump(ids, f)
+        logger.info(f"Saved ID mapping to {self.id_map_file}")
+
+        # Save index using pickle
+        with open(self.index_file, 'wb') as f:
+            pickle.dump({
+                'index': index,
+                'vectors': normalized_vectors
+            }, f)
+        logger.info(f"Saved vector index to {self.index_file}")
+
+        self.index = index
+        self.ids = ids
+        self.vectors = normalized_vectors
+
+        return index, ids, normalized_vectors
+
+    def load_index(self):
+        """
+        Load the nearest neighbors index and ID mapping from files.
+
+        Returns:
+            tuple: (index, ids, vectors) or build a new index if files don't exist.
+        """
+        if not self.index_file.exists() or not self.id_map_file.exists():
+            logger.info("Index files not found, building new index")
+            return self.build_index()
+
         try:
-            vector_list = json.loads(row['vector'])
-            vectors.append(vector_list)
-            ids.append(int(row['id']))
+            # Load index
+            with open(self.index_file, 'rb') as f:
+                data = pickle.load(f)
+                index = data['index']
+                vectors = data['vectors']
+            logger.info(f"Loaded vector index from {self.index_file}")
+
+            # Load ID mapping
+            with open(self.id_map_file, 'r') as f:
+                ids = json.load(f)
+            logger.info(f"Loaded ID mapping from {self.id_map_file}")
+
+            self.index = index
+            self.ids = ids
+            self.vectors = vectors
+
+            return index, ids, vectors
         except Exception as e:
-            logger.error(f"Error processing record {row['id']}: {e}")
+            logger.error(f"Error loading index: {e}")
+            logger.info("Building new index")
+            return self.build_index()
 
-    if not vectors:
-        logger.error("No valid vectors could be processed")
-        return None, None
+    def search_similar_images(self, feature_vector, num=5):
+        """
+        Search for similar images using the vector index.
 
-    # Convert to numpy arrays
-    vector_array = np.array(vectors, dtype=np.float32)
+        Args:
+            feature_vector: The feature vector of the query image.
+            num (int): The number of results to return.
 
-    # Normalize vectors for cosine similarity
-    norms = np.linalg.norm(vector_array, axis=1, keepdims=True)
-    # Handle zero norms
-    norms[norms == 0] = 1.0
-    normalized_vectors = vector_array / norms
+        Returns:
+            list: A list of (id, similarity) tuples.
+        """
+        # Load index if needed
+        if self.index is None or self.ids is None or self.vectors is None:
+            self.index, self.ids, self.vectors = self.load_index()
 
-    # Create index for cosine similarity
-    # Use 'cosine' as the metric for directly computing cosine similarity
-    index = NearestNeighbors(n_neighbors=min(20, len(vectors)),
-                             algorithm='auto',
-                             metric='cosine')
-    index.fit(normalized_vectors)
+        if self.index is None or self.ids is None:
+            logger.error("Failed to load or build index")
+            return []
 
-    logger.info(f"Added {len(vectors)} vectors to Nearest Neighbors index")
+        # Convert feature vector to numpy array
+        query_vector = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
 
-    # Save ID mapping
-    with open(ID_MAP_FILE, 'w') as f:
-        json.dump(ids, f)
-    logger.info(f"Saved ID mapping to {ID_MAP_FILE}")
+        # Normalize query vector
+        query_norm = np.linalg.norm(query_vector)
+        if query_norm == 0:
+            query_norm = 1.0
+        query_vector = query_vector / query_norm
 
-    # Save index using pickle
-    with open(INDEX_FILE, 'wb') as f:
-        pickle.dump({
-            'index': index,
-            'vectors': normalized_vectors
-        }, f)
-    logger.info(f"Saved vector index to {INDEX_FILE}")
+        # Search the index
+        k = min(num, len(self.ids))
+        if k == 0:
+            return []
 
-    return index, ids, normalized_vectors
+        # Get distances and indices
+        distances, indices = self.index.kneighbors(query_vector, n_neighbors=k)
 
+        # Convert distances to similarities (1 - distance)
+        similarities = [1 - dist for dist in distances[0]]
 
-def load_vector_index():
-    """
-    Load Nearest Neighbors index and ID mapping from files
-    """
-    if not INDEX_FILE.exists() or not ID_MAP_FILE.exists():
-        logger.info("Index files not found, building new index")
-        return build_vector_index()
+        # Map indices to database IDs
+        results = [(self.ids[idx], sim) for idx, sim in zip(indices[0], similarities)]
 
-    try:
-        # Load index
-        with open(INDEX_FILE, 'rb') as f:
-            data = pickle.load(f)
-            index = data['index']
-            vectors = data['vectors']
-        logger.info(f"Loaded vector index from {INDEX_FILE}")
+        return results
 
-        # Load ID mapping
-        with open(ID_MAP_FILE, 'r') as f:
-            ids = json.load(f)
-        logger.info(f"Loaded ID mapping from {ID_MAP_FILE}")
+    def rebuild_index(self):
+        """
+        Force rebuild the index regardless of whether it exists.
 
-        return index, ids, vectors
-    except Exception as e:
-        logger.error(f"Error loading index: {e}")
-        logger.info("Building new index")
-        return build_vector_index()
+        Returns:
+            tuple: (index, ids, vectors) for the new index.
+        """
+        if self.index_file.exists():
+            self.index_file.unlink()
+        if self.id_map_file.exists():
+            self.id_map_file.unlink()
 
-
-def search_similar_images(feature_vector, num=5):
-    """
-    Search for similar images using Nearest Neighbors index
-
-    Args:
-        feature_vector: Feature vector of the query image
-        num: Number of results to return
-
-    Returns:
-        List of (id, similarity) tuples
-    """
-    # Load index and ID mapping
-    index, ids, vectors = load_vector_index()
-    if index is None or ids is None:
-        logger.error("Failed to load or build index")
-        return []
-
-    # Convert feature vector to numpy array and ensure correct shape
-    query_vector = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
-
-    # Normalize query vector for cosine similarity
-    query_norm = np.linalg.norm(query_vector)
-    if query_norm == 0:
-        query_norm = 1.0
-    query_vector = query_vector / query_norm
-
-    # Search the index
-    k = min(num, len(ids))  # Can't retrieve more than what's in the index
-    if k == 0:
-        return []
-
-    # Get distances and indices
-    distances, indices = index.kneighbors(query_vector, n_neighbors=k)
-
-    # Convert distances to similarities (sklearn returns cosine distance, which is 1-cosine_similarity)
-    # So similarity = 1 - distance
-    similarities = [1 - dist for dist in distances[0]]
-
-    # Map indices back to database IDs
-    results = [(ids[idx], sim) for idx, sim in zip(indices[0], similarities)]
-
-    return results
-
-
-def rebuild_index():
-    """
-    Force rebuild the index regardless of whether it exists
-    """
-    if INDEX_FILE.exists():
-        INDEX_FILE.unlink()
-    if ID_MAP_FILE.exists():
-        ID_MAP_FILE.unlink()
-
-    return build_vector_index()
-
+        return self.build_index()
 
 if __name__ == "__main__":
     # Build index when run directly
-    build_vector_index()
+    index = VectorIndex()
+    index.build_index()

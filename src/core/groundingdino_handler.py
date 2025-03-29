@@ -1,18 +1,15 @@
-# groundingdino_handler.py
+# src/core/groundingdino_handler.py
 import sys
 import os
 from pathlib import Path
 from PIL import Image
 import numpy as np
-from torch.utils.checkpoint import checkpoint
 
-from image_similarity import load_images_from_arrays, extract_feature, compare_similarities, load_single_image_feature_vector
+from src.core.image_similarity import ImageSimilarity
+from src.core.image_processing import ImageProcessor
+from src.core.image_upload import ImageUploader
 
-# 导入刚才创建的模块
-from image_processing import split_image_vertically, run_inference, prepare_transform
-from src.core.image_upload import upload_splitted_image_to_db
-
-# 设置 Python 路径
+# Set up Python path
 root_dir = Path(__file__).parent.resolve()
 while not (root_dir / "setup.py").exists() and not (root_dir / ".git").exists():
     root_dir = root_dir.parent
@@ -20,136 +17,171 @@ while not (root_dir / "setup.py").exists() and not (root_dir / ".git").exists():
 groundingdino_path = root_dir / 'GroundingDINO'
 sys.path.append(str(groundingdino_path))
 
-# 导入必要的库
+# Import necessary libraries
 from GroundingDINO.groundingdino.util.inference import load_model
 
-"""
-Detects clothing regions in the input image and returns bounding boxes of detected clothes.
 
-This function loads the GroundingDINO model, processes the input image by splitting it into segments,
-runs inference on each segment to detect clothing, and returns the bounding boxes of the detected clothes.
+class ClothingDetector:
+    """
+    A class responsible for detecting clothing items in images using the GroundingDINO model.
+    """
 
-Parameters:
-image (np.ndarray): Input image as a numpy array, typically obtained by converting a PIL image.
-FRAME_WINDOW (optional): Streamlit window object for displaying the processed image during detection.
+    def __init__(self, config_path=None, weights_path=None):
+        """
+        Initialize the clothing detector with model paths.
 
-Returns:
-list: A list of bounding boxes (as numpy arrays) for the detected clothing regions. 
-      Returns an empty list if no clothes are detected or an error occurs.
+        Args:
+            config_path (Path, optional): Path to the model configuration file.
+            weights_path (Path, optional): Path to the model weights file.
+        """
+        # Set up paths
+        self.root_dir = root_dir
 
-Raises:
-FileNotFoundError: If the weights file is not found.
-Exception: If any error occurs during image processing or inference.
-"""
-def detect_clothes_in_image(image, FRAME_WINDOW=None):
-    # Model Backbone
-    CONFIG_PATH = groundingdino_path / 'groundingdino' / 'config' / 'GroundingDINO_SwinT_OGC.py'
-    WEIGHTS_PATH = root_dir / 'src' / 'checkpoints' / 'groundingdino_swint_ogc.pth'
+        # Model Backbone
+        self.config_path = config_path or groundingdino_path / 'groundingdino' / 'config' / 'GroundingDINO_SwinT_OGC.py'
+        self.weights_path = weights_path or root_dir / 'src' / 'checkpoints' / 'groundingdino_swint_ogc.pth'
 
-    # 检查权重文件是否存在
-    if not WEIGHTS_PATH.exists():
-        raise FileNotFoundError(f"权重文件未找到，请确保将 '{WEIGHTS_PATH}' 放置在项目根目录中。")
+        # Default parameters
+        self.box_threshold = 0.3
+        self.text_prompt = "clothes"
 
-    # 加载模型
-    model = load_model(str(CONFIG_PATH), str(WEIGHTS_PATH), device='cpu')
+        # Image processor
+        self.image_processor = ImageProcessor()
 
-    # 获取变换函数
-    transform = prepare_transform()
+        # Validate weights file
+        if not self.weights_path.exists():
+            raise FileNotFoundError(
+                f"Weights file not found. Please ensure '{self.weights_path}' exists in the project root.")
 
-    # 配置参数
-    BOX_THRESHOLD = 0.3
-    TEXT_PROMPT = "clothes"
+    def load_model(self):
+        """
+        Load the GroundingDINO model.
 
-    try:
-        # 设定分段长度为图像宽度的3倍
-        segment_height = image.shape[1] * 3
-        segments = split_image_vertically(image, segment_height)
+        Returns:
+            The loaded model.
+        """
+        return load_model(str(self.config_path), str(self.weights_path), device='cpu')
 
-        # 进行服装检测
-        clothes_bboxes = run_inference(model, transform, segments, TEXT_PROMPT, BOX_THRESHOLD, FRAME_WINDOW)
+    def detect_clothes(self, image, frame_window=None):
+        """
+        Detect clothing regions in the input image.
 
-        return clothes_bboxes
-    except Exception as e:
-        print(f"检测过程中出错2: {e}")
-        return []
+        Args:
+            image (np.ndarray): The input image as a numpy array.
+            frame_window (optional): A window object to display processed images.
+
+        Returns:
+            list: A list of bounding boxes for detected clothing regions.
+        """
+        # Load model
+        model = self.load_model()
+
+        # Get transform function
+        transform = self.image_processor.prepare_transform()
+
+        try:
+            # Set segment height to 3x image width
+            segment_height = image.shape[1] * 3
+            segments = self.image_processor.split_image_vertically(image, segment_height)
+
+            # Detect clothing
+            clothes_bboxes = self.image_processor.run_inference(
+                model, transform, segments, self.text_prompt, self.box_threshold, frame_window
+            )
+
+            return clothes_bboxes
+        except Exception as e:
+            print(f"Error during detection: {e}")
+            return []
 
 
+class DirectoryManager:
+    """
+    A utility class for managing directories and files.
+    """
 
-def clear_directory(data_dir):
-    # 确保路径是一个目录
-    if data_dir.exists() and data_dir.is_dir():
-        # 遍历目录中的所有文件并删除
-        for file in data_dir.rglob('*'):  # rglob 匹配所有文件和文件夹
-            if file.is_file():  # 仅删除文件，保持子文件夹
-                file.unlink()  # 删除文件
-            elif file.is_dir():  # 删除空的子文件夹
-                file.rmdir()  # 删除空文件夹
-    else:
-        print(f"{data_dir} 不是一个有效的目录。")
+    @staticmethod
+    def clear_directory(data_dir):
+        """
+        Clear all files and empty folders within a specified directory.
 
-# 示例调用
+        Args:
+            data_dir (Path): The path of the directory to be cleared.
+        """
+        # Ensure the path is a directory
+        if data_dir.exists() and data_dir.is_dir():
+            # Traverse all files in the directory and delete them
+            for file in data_dir.rglob('*'):
+                if file.is_file():
+                    file.unlink()  # Delete file
+                elif file.is_dir():
+                    file.rmdir()  # Delete empty folder
+        else:
+            print(f"{data_dir} is not a valid directory.")
+
+# Example usage
 if __name__ == "__main__":
-    # 根目录
+    # Root directory
     root_dir = Path(__file__).parent.resolve()
-
     while not (root_dir / "setup.py").exists() and not (root_dir / ".git").exists():
         root_dir = root_dir.parent
 
-    # 检查是否存在 ScreenShots 文件夹
+    # Check for ScreenShots folder
     screenshots_dir = root_dir / "ScreenShots"
     if not screenshots_dir.exists() or not screenshots_dir.is_dir():
-        raise FileNotFoundError(f"'{screenshots_dir}' 文件夹不存在，请确保下载资源文件并将该文件夹存在于项目根目录中。")
+        raise FileNotFoundError(f"'{screenshots_dir}' folder does not exist. Please download resource files.")
 
-    # 图像路径
+    # Image path
     image_path = screenshots_dir / "01.jpeg"
-
     image_name = os.path.splitext(os.path.basename(image_path))[0]
 
-    # 检查图像文件是否存在
+    # Check if image file exists
     if not image_path.exists():
-        raise FileNotFoundError(f"图像文件 '{image_path}' 不存在，请确保文件路径正确。")
+        raise FileNotFoundError(f"Image file '{image_path}' does not exist. Please check the file path.")
 
-    # 打开图像并转换为 numpy 数组
+    # Open image and convert to numpy array
     image = Image.open(image_path)
     image_np = np.array(image)
 
-    # 调用检测函数获取分割后的图像数组
-    result_bboxes = detect_clothes_in_image(image_np)
+    # Initialize the detector and detect clothes
+    detector = ClothingDetector()
+    result_bboxes = detector.detect_clothes(image_np)
 
-    # --------------------------
-    # 新增代码：保存分割图片到data目录
-    # --------------------------
+    # Create data directory and process images
     data_dir = root_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)  # 自动创建目录
+    data_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create subdirectory for the original image
+    image_dir = data_dir / image_name
+    image_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save segmented images
     saved_paths = []
     for idx, img_array in enumerate(result_bboxes):
-        img = Image.fromarray(img_array)
         filename = f"segment_{idx}.png"
-        save_path = data_dir / filename
+        save_path = image_dir / filename
+        img = Image.fromarray(img_array)
         img.save(save_path)
         saved_paths.append(save_path)
-        print(f"已保存分割图片: {save_path}")
-        # 上传分割图片 By Kazami
-        vector = extract_feature(result_bboxes[idx])
-        upload_splitted_image_to_db(result_bboxes[idx],idx,save_path,image_name,idx,"png",vector)
-        # idx修改
+        print(f"Saved segmented image: {save_path}")
 
+    # Load and compare features
+    similarity = ImageSimilarity()
 
-    # 加载分割图像特征（从保存的文件加载）
+    # Load segmented image features
     segmented_features = {}
     for path in saved_paths:
-        feature_dict = load_single_image_feature_vector(path)
+        feature_dict = similarity.load_single_image_feature_vector(path)
         segmented_features.update(feature_dict)
 
-    # 加载对比图片特征
+    # Load comparison image feature
     single_img_path = root_dir / "Assets" / "spilt_image_similarity_test_2.png"
-    single_feature = load_single_image_feature_vector(single_img_path)
+    single_feature = similarity.load_single_image_feature_vector(single_img_path)
 
-    # 执行相似度对比
-    similarity_results = compare_similarities(single_feature, segmented_features)
+    # Compare similarities
+    similarity_results = similarity.compare_similarities(single_feature, segmented_features)
 
-    # 打印对比结果（保持原输出格式）
-    print(f"\n对比图片: {single_img_path.name}")
-    for img_name, similarity in sorted(similarity_results, key=lambda x: x[1], reverse=True):
-        print(f"分割区域 {img_name}: 相似度 {similarity:.4f}")
+    # Print comparison results
+    print(f"\nComparison image: {single_img_path.name}")
+    for img_name, sim in sorted(similarity_results, key=lambda x: x[1], reverse=True):
+        print(f"Segmented region {img_name}: Similarity {sim:.4f}")

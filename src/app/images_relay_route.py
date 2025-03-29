@@ -1,161 +1,227 @@
-"""import json
-import numpy as np
-from flask import request, jsonify, Blueprint
-from flask_cors import cross_origin
-
-from src.core.image_similarity import extract_feature, cosine_similarity
-from src.repo.split_images_repo import select_all_vectors, select_image_data_by_id
-from src.utils.data_conversion import base64_to_numpy
-
-# 定义一个 Blueprint 来组织路由
-api_rp = Blueprint('images_relay', __name__)
-
-@api_rp.route("/relay_image", methods=["POST"])
-@cross_origin()
-def image_relay():
-    try:
-        # 获取传递的 JSON 数据
-        data = request.get_json()
-        num = data.get('num')  # 获取返回的条数
-        base64_image = data.get('image_base64')  # 获取 Base64 图像数据
-        print(f"Received data: {data}")  # 打印接收到的数据
-
-        # 将 Base64 字符串转换为 NumPy 数组
-        image_np = base64_to_numpy(base64_image)
-
-        # 提取图像特征
-        image_feature = extract_feature(image_np)
-
-        # 获取数据库中所有图像的向量
-        rows = select_all_vectors()
-        data = [{'id': row[0], 'vector': np.array(json.loads(row[1]))} for row in rows]
-
-        # 计算与目标图像的相似度
-        similarities = [
-            (item['id'], cosine_similarity(image_feature, item['vector'])) for item in data
-        ]
-
-        # 按相似度降序排列
-        similarities.sort(key=lambda x: x[1], reverse=True)
-
-        result = []
-        for idx, sim in similarities[:num]:
-            # 根据 id 查询对应的图像数据
-            base64_string = select_image_data_by_id(idx)
-
-            result.append({
-                "id": idx,
-                "similarity": sim,
-                "processed_image_base64": base64_string if base64_string else None  # 设置图像数据或 None
-            })
-
-        return jsonify(result)  # 返回 JSON 格式的结果
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-"""
 import base64
 import json
 import logging
-
+import time
+import uuid
 import numpy as np
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 
-from src.core.image_similarity import extract_feature, cosine_similarity
-from src.repo.split_images_repo import select_all_vectors, select_image_data_by_id
+from src.core.image_similarity import ImageSimilarity
+from src.core.vector_index import VectorIndex
+from src.db.db_connect import get_connection
+from src.repo.split_images_repo import select_multiple_image_data_by_ids
 from src.utils.data_conversion import base64_to_numpy
+from src.utils.request_tracker import request_tracker, CancellationException
 
-# 定义一个 Blueprint 来组织路由
+# Define a Blueprint to organize routes
 api_rp = Blueprint('images_relay', __name__)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Create a thread-safe instance of ImageSimilarity
+image_similarity = ImageSimilarity()
+vector_index = VectorIndex()
+
 
 @api_rp.route("/relay_image", methods=["POST"])
 @cross_origin()
 def image_relay():
+    start_time = time.time()
+
+    # Generate a unique request ID
+    request_id = str(uuid.uuid4())
+
+    # Register this request in the tracker
+    request_tracker.register_request(request_id)
+
     try:
-        # 获取传递的 JSON 数据
         data = request.get_json()
-        print(f"Received JSON data: {data}")  # 打印接收到的数据
+        num = data.get('num', 5)  # Default to 5 if not specified
+        base64_image = data.get('image_base64')
 
-        num = data.get('num')  # 获取返回的条数
-        base64_image = data.get('image_base64')  # 获取 Base64 图像数据
         if not base64_image:
-            print("Error: No 'image_base64' field in the request data.")
-            return jsonify({"error": "'image_base64' field is required"}), 400  # 返回统一的错误消息
+            print("Error: No 'image_base64' field in request data")
+            request_tracker.complete_request(request_id)
+            return jsonify({"error": "'image_base64' field is required"}), 400
 
-        print(f"Extracted num: {num}, image_base64: {base64_image[:30]}...")  # 只打印部分 Base64 图像数据
+        print(f"Return count: {num}, received image_base64: {base64_image[:30]}...")
 
-        # 将 Base64 字符串转换为 NumPy 数组
-        image_np = base64_to_numpy(base64_image)
-        print("Image successfully converted to NumPy array.")
+        # Image conversion - wrap in try-except to handle cancellation
+        try:
+            convert_start = time.time()
 
-        # 提取图像特征
-        image_feature = extract_feature(image_np)
-        print(f"Extracted image feature: {image_feature[:10]}...")  # 只打印部分特征数据
+            # Make this operation cancellable
+            def convert_image():
+                image_np = base64_to_numpy(base64_image)
+                print(f"Image conversion time: {time.time() - convert_start:.4f} seconds")
+                return image_np
 
-        # 获取数据库中所有图像的向量
-        rows = select_all_vectors()
-        print(f"Fetched {len(rows)} vectors from the database.")
+            image_np = request_tracker.run_cancellable(request_id, convert_image)
 
-        # data = [{'id': row[0], 'vector': np.array(json.loads(row[1]))} for row in rows]
-        data = []
-        print(data)
-        for row in rows:
-            print("1")
-            try:
-                print("2")
-                print(row)
-                vector_str = row['vector']  # 提取字符串
-                print(vector_str)
-                vector_list = json.loads(vector_str)
-                print("提取成功：", vector_list)
-                vector_array = np.array(vector_list)
-                print("1")
-                data.append({'id': row['id'], 'vector': vector_array})
-                print("2")
-            except Exception as e:
-                print(f"Error processing row {row[0]}: {e}")
-        print(f"Processed database vectors into list of dictionaries.")
+        except CancellationException:
+            print(f"Request {request_id} was cancelled during image conversion")
+            request_tracker.complete_request(request_id)
+            return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
-        # 计算与目标图像的相似度
-        similarities = [
-            (item['id'], cosine_similarity(image_feature, item['vector'])) for item in data
-        ]
-        print(f"Computed similarities for {len(similarities)} images.")
+        # Feature extraction - wrap in try-except to handle cancellation
+        try:
+            feature_start = time.time()
 
-        # 按相似度降序排列
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        print("Sorted similarities in descending order.")
+            # Make feature extraction cancellable
+            def extract_features():
+                return image_similarity.extract_feature(image_np)
+
+            image_feature = request_tracker.run_cancellable(request_id, extract_features)
+            print(f"Feature extraction time: {time.time() - feature_start:.4f} seconds")
+
+        except CancellationException:
+            print(f"Request {request_id} was cancelled during feature extraction")
+            request_tracker.complete_request(request_id)
+            return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
+
+        # Find similar images using vector index - wrap in try-except for cancellation
+        try:
+            search_start = time.time()
+
+            # Make vector search cancellable
+            def search_vectors():
+                return vector_index.search_similar_images(image_feature, num)
+
+            similarity_pairs = request_tracker.run_cancellable(request_id, search_vectors)
+            print(f"Vector search time: {time.time() - search_start:.4f} seconds")
+
+        except CancellationException:
+            print(f"Request {request_id} was cancelled during vector search")
+            request_tracker.complete_request(request_id)
+            return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
+
+        if not similarity_pairs:
+            print("No similar images found")
+            request_tracker.complete_request(request_id)
+            return jsonify([])
+
+        # Fetch image data in batch - wrap in try-except for cancellation
+        try:
+            image_fetch_start = time.time()
+            top_ids = [id for id, _ in similarity_pairs]
+
+            # Make database fetch cancellable
+            def fetch_images():
+                return select_multiple_image_data_by_ids(top_ids)
+
+            all_image_data = request_tracker.run_cancellable(request_id, fetch_images)
+
+        except CancellationException:
+            print(f"Request {request_id} was cancelled during database fetch")
+            request_tracker.complete_request(request_id)
+            return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
         result = []
-        for idx, sim in similarities[:num]:
-            print(f"Processing image with id: {idx} and similarity: {sim:.4f}")
-            # 根据 id 查询对应的图像数据
-            binary_string = select_image_data_by_id(idx)['splitted_image_data']
-            print("1")
-            base64_string = base64.b64encode(binary_string).decode("utf-8")
-            '''base64_string = select_image_data_by_id(idx)'''
+        # Process results - check for cancellation during iteration
+        for idx, sim in similarity_pairs:
+            # Check for cancellation directly in the loop
+            if request_tracker.is_cancelled(request_id):
+                print(f"Request {request_id} was cancelled during result preparation")
+                request_tracker.complete_request(request_id)
+                return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
-            if base64_string:
-                print(f"Found base64 image data for id {idx}.")
+            image_data = all_image_data.get(idx)
+            if image_data and 'splitted_image_data' in image_data:
+                binary_string = image_data['splitted_image_data']
+                base64_string = base64.b64encode(binary_string).decode("utf-8")
+
+                result.append({
+                    "id": idx,
+                    "similarity": float(sim),  # Convert numpy float to Python float
+                    "processed_image_base64": base64_string
+                })
             else:
-                print(f"No image data found for id {idx}.")
+                print(f"Image data not found for ID {idx}")
+                result.append({
+                    "id": idx,
+                    "similarity": float(sim),
+                    "processed_image_base64": None
+                })
 
-            result.append({
-                "id": idx,
-                "similarity": sim,
-                "processed_image_base64": base64_string if base64_string else None  # 设置图像数据或 None
-            })
+        print(f"Image data fetch time: {time.time() - image_fetch_start:.4f} seconds")
+        total_time = time.time() - start_time
+        print(f"Total execution time: {total_time:.4f} seconds")
 
-        print(f"Returning {len(result)} results.")
-        print(jsonify(result))
-        logger.info(f"Response JSON: {jsonify(result).get_data(as_text=True)}")
-        return jsonify(result)
+        # Mark request as complete
+        request_tracker.complete_request(request_id)
+
+        # Include the request ID in the response
+        return jsonify({
+            "request_id": request_id,
+            "results": result
+        })
 
     except Exception as e:
-        print(f"Error occurred: {e}")
-        return jsonify({"error": str(e)}), 500
+        total_time = time.time() - start_time
+        print(f"Error occurred! Total execution time: {total_time:.4f} seconds")
+        print(f"Error details: {e}")
+        request_tracker.complete_request(request_id)
+        return jsonify({"error": str(e), "execution_time": total_time}), 500
+
+
+@api_rp.route("/cancel_request/<request_id>", methods=["POST"])
+@cross_origin()
+def cancel_request(request_id):
+    """
+    Endpoint to cancel an ongoing image processing request
+    """
+    success = request_tracker.cancel_request(request_id)
+    if success:
+        return jsonify({"status": "success", "message": f"Request {request_id} marked for cancellation"}), 200
+    else:
+        return jsonify({"status": "error", "message": f"Request {request_id} not found or already completed"}), 404
+
+
+# Add a new endpoint to support frontend's recent requests queries
+@api_rp.route("/request_status/recent", methods=["GET"])
+@cross_origin()
+def recent_requests():
+    """
+    Get recent active requests - useful for the frontend to find which requests to cancel
+    """
+    with request_tracker.request_lock:
+        current_time = time.time()
+        recent = [
+            {
+                "id": req_id,
+                "timestamp": info["start_time"],
+                "age": current_time - info["start_time"]
+            }
+            for req_id, info in request_tracker.active_requests.items()
+        ]
+        # Sort by timestamp (newest first)
+        recent.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    return jsonify({"requests": recent}), 200
+
+
+@api_rp.route("/request_status/<request_id>", methods=["GET"])
+@cross_origin()
+def request_status(request_id):
+    """
+    Get the status of a specific request
+    """
+    with request_tracker.request_lock:
+        if request_id in request_tracker.active_requests:
+            status = "cancelled" if request_tracker.active_requests[request_id]["cancelled"] else "processing"
+            return jsonify({"status": status}), 200
+        else:
+            return jsonify({"status": "not_found"}), 404
+
+
+@api_rp.route("/cleanup_requests", methods=["POST"])
+@cross_origin()
+def cleanup_requests():
+    """
+    Administrative endpoint to clean up stale requests
+    """
+    max_age = request.json.get("max_age_seconds", 3600)  # Default: 1 hour
+    request_tracker.cleanup_old_requests(max_age)
+    return jsonify({"status": "success", "message": "Cleaned up stale requests"}), 200

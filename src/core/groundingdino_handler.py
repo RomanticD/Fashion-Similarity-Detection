@@ -7,7 +7,6 @@ import numpy as np
 
 from src.core.image_similarity import ImageSimilarity
 from src.core.image_processing import ImageProcessor
-from src.core.image_upload import ImageUploader
 
 # Set up Python path
 root_dir = Path(__file__).parent.resolve()

@@ -14,7 +14,7 @@ sys.path.append(str(groundingdino_path))
 
 # Import related modules
 from src.core.groundingdino_handler import ClothingDetector
-from src.core.image_upload import ImageUploader
+from src.db.uploads.image_upload import ImageUploader
 
 
 def process_single_image(image_path):

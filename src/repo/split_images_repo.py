@@ -89,7 +89,7 @@ def delete_split_image_db(splitted_image_id):
 
 def save_to_db(splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector):
     # 连接到数据库
-    conn = get_connection()  # 你可能需要在这里配置数据库连接
+    conn = get_connection()
     cursor = conn.cursor()
 
     try:

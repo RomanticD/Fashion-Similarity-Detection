@@ -25,7 +25,7 @@ class ClothingDetector:
     A class responsible for detecting clothing items in images using the GroundingDINO model.
     """
 
-    def __init__(self, config_path=None, weights_path=None):
+    def __init__(self, config_path=None, weights_path=None, box_threshold=0.3, text_prompt="clothes"):
         """
         Initialize the clothing detector with model paths.
 
@@ -41,8 +41,8 @@ class ClothingDetector:
         self.weights_path = weights_path or root_dir / 'src' / 'checkpoints' / 'groundingdino_swint_ogc.pth'
 
         # Default parameters
-        self.box_threshold = 0.3
-        self.text_prompt = "clothes"
+        self.box_threshold = box_threshold
+        self.text_prompt = text_prompt
 
         # Image processor
         self.image_processor = ImageProcessor()
@@ -61,7 +61,7 @@ class ClothingDetector:
         """
         return load_model(str(self.config_path), str(self.weights_path), device='cpu')
 
-    def detect_clothes(self, image, frame_window=None):
+    def detect_clothes(self, image, frame_window=None, box_threshold=None, text_prompt=None):
         """
         Detect clothing regions in the input image.
 
@@ -72,6 +72,12 @@ class ClothingDetector:
         Returns:
             list: A list of bounding boxes for detected clothing regions.
         """
+        # Update box_threshold and text_prompt if provided
+        if box_threshold is not None:
+            self.box_threshold = box_threshold
+        if text_prompt is not None:
+            self.text_prompt = text_prompt
+
         # Load model
         model = self.load_model()
 

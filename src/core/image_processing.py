@@ -42,6 +42,32 @@ class ImageProcessor:
         logger.info(f"Image split into {len(segments)} segments.")
         return segments
 
+    def split_image_horizontally(self, image: np.ndarray, segment_width: int) -> List[np.ndarray]:
+        """
+        Split an image horizontally into multiple segments.
+
+        Args:
+            image (np.ndarray): Input image with shape (height, width, channels).
+            segment_width (int): Width of each segmented image.
+
+        Returns:
+            List[np.ndarray]: A list of segmented images.
+
+        Raises:
+            ValueError: If segment_width is greater than image width.
+        """
+        height, width, _ = image.shape
+        if segment_width > width:
+            raise ValueError("Segment width cannot be larger than image width.")
+
+        segments = []
+        for i in range(0, width, segment_width):
+            segment = image[:, i:i + segment_width, :]
+            segments.append(segment)
+
+        logger.info(f"Image split into {len(segments)} segments.")
+        return segments
+
     def combine_segments_vertically(self, segments: List[np.ndarray], original_height: int,
                                     original_width: int) -> np.ndarray:
         """
@@ -58,6 +84,23 @@ class ImageProcessor:
         combined_image = np.vstack(segments)
         logger.info(f"Segments combined into one image of size ({original_height}, {original_width}).")
         return combined_image[:original_height, :original_width, :]
+
+    def combine_segments_horizontally(self, segments: List[np.ndarray], original_height: int,
+                                      original_width: int) -> np.ndarray:
+        """
+        Recombine horizontally segmented images into an image of the original size.
+
+        Args:
+            segments (List[np.ndarray]): A list of segmented image segments.
+            original_height (int): The height of the original image.
+            original_width (int): The width of the original image.
+
+        Returns:
+            np.ndarray: The combined image.
+        """
+        combined_image = np.hstack(segments)
+        logger.info(f"Segments combined horizontally into one image of size ({original_height}, {original_width}).")
+        return combined_image[:, :original_width, :]
 
     def pad_image(self, image: Image.Image, target_size: Tuple[int, int]) -> Image.Image:
         """
@@ -82,15 +125,15 @@ class ImageProcessor:
         logger.info(f"Image padded and resized to {target_size}.")
         return new_image
 
-    def run_inference(self, model, transform, segments: List[np.ndarray], text_prompt: str,
+    def run_inference(self, model, transform, image: np.ndarray, text_prompt: str,
                       box_threshold: float, frame_window=None) -> List[np.ndarray]:
         """
-        Run inference on each image segment, detect targets, and annotate them.
+        Run inference on the image, detect targets, and annotate them.
 
         Args:
             model: The model for inference.
             transform: The image transformation function.
-            segments (List[np.ndarray]): A list of input image segments.
+            image (np.ndarray): The input image.
             text_prompt (str): The text prompt for target detection.
             box_threshold (float): The confidence threshold for bounding boxes.
             frame_window: The window to display results.
@@ -98,6 +141,18 @@ class ImageProcessor:
         Returns:
             List[np.ndarray]: A list of detected image segments.
         """
+        height, width, _ = image.shape
+        aspect_ratio = width / height
+
+        if aspect_ratio <= 1 / 3:  # 1X3 以上
+            segment_height = width * 3
+            segments = self.split_image_vertically(image, segment_height)
+        elif aspect_ratio >= 3:  # 3X1 以上
+            segment_width = height * 3
+            segments = self.split_image_horizontally(image, segment_width)
+        else:  # 宽高比合适，直接检测
+            segments = [image]
+
         bboxes = []  # Store images of each bounding box region
         annotated_segments = []
 
@@ -129,11 +184,20 @@ class ImageProcessor:
 
         # Combine annotated segments if needed
         if frame_window is not None:
-            annotated_image = self.combine_segments_vertically(
-                annotated_segments,
-                segments[0].shape[0] * len(segments),
-                segments[0].shape[1]
-            )
+            if aspect_ratio <= 1 / 3:
+                annotated_image = self.combine_segments_vertically(
+                    annotated_segments,
+                    segments[0].shape[0] * len(segments),
+                    segments[0].shape[1]
+                )
+            elif aspect_ratio >= 3:
+                annotated_image = self.combine_segments_horizontally(
+                    annotated_segments,
+                    segments[0].shape[0],
+                    segments[0].shape[1] * len(segments)
+                )
+            else:
+                annotated_image = segments[0]
             frame_window.image(annotated_image, channels='BGR')
 
         logger.info(f"Inference completed. {len(bboxes)} bounding boxes detected.")

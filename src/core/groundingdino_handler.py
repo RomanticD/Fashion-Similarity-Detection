@@ -85,13 +85,9 @@ class ClothingDetector:
         transform = self.image_processor.prepare_transform()
 
         try:
-            # Set segment height to 3x image width
-            segment_height = image.shape[1] * 3
-            segments = self.image_processor.split_image_vertically(image, segment_height)
-
-            # Detect clothing
+            # 直接将图像传入 run_inference 方法，让其根据宽高比处理
             clothes_bboxes = self.image_processor.run_inference(
-                model, transform, segments, self.text_prompt, self.box_threshold, frame_window
+                model, transform, image, self.text_prompt, self.box_threshold, frame_window
             )
 
             return clothes_bboxes

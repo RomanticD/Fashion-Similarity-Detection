@@ -27,7 +27,6 @@ vector_index = VectorIndex()
 
 
 @api_rp.route("/relay_image", methods=["POST"])
-@admin_required
 @cross_origin()
 def image_relay():
     start_time = time.time()

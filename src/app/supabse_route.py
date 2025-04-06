@@ -14,32 +14,30 @@ supabase = SupabaseClient()
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
+        try:
+            # Get current user directly from Supabase
+            user_response = supabase.get_user()
 
-        if not auth_header or not auth_header.startswith('Bearer '):
+            if not user_response or not user_response.user:
+                return jsonify({
+                    'success': False,
+                    'message': 'User not found or not authenticated',
+                    'data': None
+                }), 401
+
+            return f(*args, **kwargs)
+        except Exception as e:
             return jsonify({
                 'success': False,
-                'message': 'Authorization header is required',
+                'message': str(e),
                 'data': None
             }), 401
 
-        return f(*args, **kwargs)
-
     return decorated
-
 
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({
-                'success': False,
-                'message': 'Authorization header is required',
-                'data': None
-            }), 401
-
         try:
             # Get current user
             user_response = supabase.get_user()
@@ -70,7 +68,6 @@ def admin_required(f):
             }), 500
 
     return decorated
-
 
 @api_auth.route('/register', methods=['POST'])
 def register():
@@ -195,7 +192,6 @@ def get_user():
     Get the current user information
     """
     try:
-
         # Get current user
         user_response = supabase.get_user()
 

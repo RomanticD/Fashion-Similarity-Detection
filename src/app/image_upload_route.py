@@ -8,6 +8,7 @@ from PIL import Image
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 
+from src.app.supabse_route import admin_required
 from src.core.groundingdino_handler import ClothingDetector
 from src.db.uploads.image_upload import ImageUploader
 from src.core.vector_index import VectorIndex
@@ -62,6 +63,7 @@ def ensure_rgb_format(image_np):
 
 
 @api_up.route("/upload_image", methods=["POST"])
+@admin_required
 @cross_origin()
 def upload_image():
     """

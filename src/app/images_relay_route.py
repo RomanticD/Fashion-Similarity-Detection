@@ -7,6 +7,7 @@ import numpy as np
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 
+from src.app.supabse_route import admin_required, token_required
 from src.core.image_similarity import ImageSimilarity
 from src.core.vector_index import VectorIndex
 from src.db.db_connect import get_connection
@@ -26,6 +27,7 @@ vector_index = VectorIndex()
 
 
 @api_rp.route("/relay_image", methods=["POST"])
+@admin_required
 @cross_origin()
 def image_relay():
     start_time = time.time()

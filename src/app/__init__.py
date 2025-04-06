@@ -4,7 +4,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .images_relay_route import api_rp
 from .images_route import api_bp
 from .split_images_route import api_sp
-from .image_upload_route import api_up  # 导入新的蓝图
+from .image_upload_route import api_up
+from .supabse_route import api_auth
 
 
 def create_app():
@@ -22,6 +23,7 @@ def create_app():
     app.register_blueprint(api_sp)
     app.register_blueprint(api_rp)
     app.register_blueprint(api_up)
+    app.register_blueprint(api_auth)
 
     # 创建一个请求前的钩子，设置超时响应
     @app.before_request

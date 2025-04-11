@@ -1,14 +1,16 @@
 from flask import Blueprint, request, jsonify
 from ..auth.supabase_client import SupabaseClient
-import json
 from functools import wraps
+from flask_cors import CORS
 
 # Create a Blueprint for auth routes
 api_auth = Blueprint('auth', __name__, url_prefix='/api/auth')
 
+# Initialize CORS for this Blueprint
+CORS(api_auth)
+
 # Initialize the Supabase client
 supabase = SupabaseClient()
-
 
 # Authentication middleware
 def token_required(f):

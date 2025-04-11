@@ -1,6 +1,7 @@
 from flask import Flask, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .details_route import api_id
 from .images_relay_route import api_rp
 from .images_route import api_bp
 from .split_images_route import api_sp
@@ -24,6 +25,7 @@ def create_app():
     app.register_blueprint(api_rp)
     app.register_blueprint(api_up)
     app.register_blueprint(api_auth)
+    app.register_blueprint(api_id)
 
     # 创建一个请求前的钩子，设置超时响应
     @app.before_request

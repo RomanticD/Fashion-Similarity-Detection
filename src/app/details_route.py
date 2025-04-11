@@ -5,6 +5,7 @@ from flask_cors import cross_origin, CORS
 from src.repo.images_details_repo import read_image_detail
 
 api_id = Blueprint('image_detail', __name__)
+CORS(api_id)
 
 @api_id.route("/image_detail", methods=["GET"])
 @cross_origin()

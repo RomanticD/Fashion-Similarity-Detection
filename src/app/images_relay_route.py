@@ -5,7 +5,7 @@ import time
 import uuid
 import numpy as np
 from flask import request, jsonify, Blueprint
-from flask_cors import cross_origin
+from flask_cors import cross_origin, CORS
 
 from src.app.supabse_route import admin_required, token_required
 from src.core.image_similarity import ImageSimilarity
@@ -17,6 +17,8 @@ from src.utils.request_tracker import request_tracker, CancellationException
 
 # Define a Blueprint to organize routes
 api_rp = Blueprint('images_relay', __name__)
+
+CORS(api_rp)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

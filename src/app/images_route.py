@@ -7,7 +7,7 @@ from src.repo.images_repo import create_image_feature_db, read_image_feature_db,
 
 # 定义一个 Blueprint 来组织路由
 api_bp = Blueprint('images_route', __name__)
-
+CORS(api_bp)
 @api_bp.route("/image_features", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_record():

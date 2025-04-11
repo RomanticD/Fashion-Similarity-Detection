@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 api_sp = Blueprint('split_images', __name__)
 
+CORS(api_sp)
+
 @api_sp.route("/splitted_images", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_splitted_image():

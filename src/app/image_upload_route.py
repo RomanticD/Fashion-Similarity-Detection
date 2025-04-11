@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from flask import request, jsonify, Blueprint
-from flask_cors import cross_origin
+from flask_cors import cross_origin, CORS
 
 from src.app.supabse_route import admin_required
 from src.core.groundingdino_handler import ClothingDetector
@@ -17,6 +17,8 @@ from src.utils.request_tracker import request_tracker, CancellationException
 
 # 定义一个 Blueprint 来组织路由
 api_up = Blueprint('image_upload', __name__)
+
+CORS(api_up)
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO)

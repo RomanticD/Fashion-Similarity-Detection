@@ -23,8 +23,6 @@ from src.utils.data_conversion import base64_to_numpy
 def parse_arguments():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description='测试图片上传API')
-    parser.add_argument('--image_dir', type=str, default='Assets/',
-                        help='要上传的图片所在目录 (默认: Assets/)')
     parser.add_argument('--force', action='store_true', default=True,
                         help='即使未检测到服装也强制处理 (默认: True)')
     return parser.parse_args()
@@ -150,9 +148,9 @@ def main():
     print(f"📁 项目根目录: {root_dir}")
 
     # 确认图片目录路径
-    image_dir = root_dir / args.image_dir
+    image_dir = root_dir / "assets" / "test_groundingDINO"
     if not image_dir.exists() or not image_dir.is_dir():
-        print(f"❌ 错误: 图片目录不存在: {image_dir}")
+        print(f"❌ 错误: 图片目录 {image_dir} 不存在，请确保该目录存在并包含需要处理的图片。")
         sys.exit(1)
 
     # 获取目录下的所有图片文件
@@ -164,7 +162,7 @@ def main():
         image_files.extend(list(image_dir.glob(f'*{ext.upper()}')))  # 检查大写扩展名
 
     if not image_files:
-        print(f"❌ 错误: 图片目录中没有找到图片文件: {image_dir}")
+        print(f"❌ 错误: 图片目录 {image_dir} 中没有找到图片文件，请确保该目录包含需要处理的图片。")
         sys.exit(1)
 
     print(f"✅ 找到 {len(image_files)} 个图片文件")

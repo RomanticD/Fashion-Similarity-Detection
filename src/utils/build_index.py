@@ -10,11 +10,13 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent.parent
 sys.path.append(str(root_dir))
 
-from src.core.vector_index import rebuild_index
+from src.core.vector_index import VectorIndex
 
 if __name__ == "__main__":
     print("Building vector index from database...")
-    index, ids, vectors = rebuild_index()
+    # 创建 VectorIndex 类的实例
+    index_manager = VectorIndex()
+    index, ids, vectors = index_manager.rebuild_index()
 
     if index is not None:
         print(f"Successfully built index with {len(ids)} vectors")

@@ -63,6 +63,11 @@ def base64_to_image(base64_str):
 def save_segmented_images(image_sub_dir, segmented_images):
     """保存分割后的图片到对应的test_X文件夹中"""
     image_sub_dir.mkdir(parents=True, exist_ok=True)
+    # 先删除原文件夹中的所有图片
+    for item in image_sub_dir.iterdir():
+        if item.is_file():
+            item.unlink()
+
     for idx, img_array in enumerate(segmented_images):
         try:
             filename = f"segment_{idx}.png"
@@ -178,9 +183,6 @@ def main():
         image_name = Path(image_path).stem
         image_names.append(image_name)
         image_sub_dir = test_dir / f"test_{image_name}"
-        if image_sub_dir.exists():
-            print(f"文件夹 {image_sub_dir} 已存在，跳过切图操作")
-            continue
         process_image(image_path, test_dir, args.force)
 
     # 删除无用的文件夹

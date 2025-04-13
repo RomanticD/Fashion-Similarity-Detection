@@ -21,7 +21,7 @@ import io
 from src.core.image_similarity import ImageSimilarity
 from src.core.groundingdino_handler import ClothingDetector
 from src.repo.split_images_repo import select_image_data_by_id, select_multiple_image_data_by_ids
-from src.db.db_connect import get_connection  # 导入数据库连接方法
+
 
 def parse_arguments():
     """解析命令行参数"""
@@ -133,14 +133,15 @@ def save_similar_images_from_db(image_sub_dir, similar_images):
     print(f"🔍 尝试批量查询的图片ID: {ids}")
 
     # 从数据库中获取图片数据
-    image_data_list = select_multiple_image_data_by_ids(ids)
+    image_data_dict = select_multiple_image_data_by_ids(ids)
+    print(f"从数据库获取到的图片数据数量: {len(image_data_dict)}")
 
     for idx, item in enumerate(similar_images, start=1):
         image_id = item['id']
         # 查找对应的图片数据
-        image_data = next((data for data in image_data_list if data[1] == image_id), None)
+        image_data = image_data_dict.get(image_id)
         if image_data:
-            binary_image_data = image_data[-1]  # 假设图片数据在最后一列
+            binary_image_data = image_data['splitted_image_data']
             try:
                 # 将二进制数据转换为 PIL 图像
                 img = Image.open(io.BytesIO(binary_image_data))

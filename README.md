@@ -1,4 +1,4 @@
-# Image Similarity Detection Backend
+# Fashion Similarity Detection Backend
 
 A Flask-based backend system for detecting and comparing image similarities using feature vectors and efficient nearest neighbor search.
 

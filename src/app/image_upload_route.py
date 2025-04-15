@@ -348,3 +348,112 @@ def cancel_upload(request_id):
             "success": False,
             "message": f"请求 {request_id} 未找到或已完成"
         }), 404
+
+
+@api_up.route("/image/split", methods=["POST"])
+@cross_origin()
+def split_image():
+    """
+    将长图分割成多个服装图片的接口
+
+    请求格式:
+    {
+        "image_base64": "base64编码的图片字符串"
+    }
+
+    返回格式:
+    {
+        "success": true/false,
+        "message": "状态信息",
+        "segments": [
+            {
+                "image_base64": "分割后的base64图片字符串"
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        base64_image = data.get('image_base64')
+
+        # 参数验证
+        if not base64_image:
+            logger.error("请求数据中缺少 'image_base64' 字段")
+            return jsonify({
+                "success": False,
+                "message": "缺少必要参数: 'image_base64'"
+            }), 400
+
+        # 步骤1: 将base64转换为图像数组
+        try:
+            # 移除可能存在的数据前缀
+            if base64_image.startswith('data:'):
+                clean_base64 = base64_image.split(',', 1)[1]
+            else:
+                clean_base64 = base64_image
+
+            # 转换为numpy数组
+            image_np = base64_to_numpy(clean_base64)
+
+            # 确保图像是RGB格式
+            image_np = ensure_rgb_format(image_np)
+
+        except Exception as e:
+            logger.error(f"图像转换错误: {e}")
+            return jsonify({
+                "success": False,
+                "message": f"图像转换错误: {str(e)}"
+            }), 400
+
+        # 步骤2: 使用GroundingDINO检测服装物品
+        try:
+            segmented_images = clothing_detector.detect_clothes(image_np)
+
+            if not segmented_images:
+                return jsonify({
+                    "success": False,
+                    "message": "未在图像中检测到服装物品"
+                }), 200
+
+            # 将分割后的图像转换为base64
+            segments = []
+            for img_array in segmented_images:
+                # 确保图像是RGB格式
+                img_array = ensure_rgb_format(img_array)
+                
+                # 将numpy数组转换为PIL图像
+                img = Image.fromarray(img_array)
+                
+                # 将图像转换为base64
+                import base64
+                from io import BytesIO
+                
+                buffered = BytesIO()
+                img.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                
+                segments.append({
+                    "image_base64": f"data:image/png;base64,{img_str}"
+                })
+
+            return jsonify({
+                "success": True,
+                "message": f"成功分割图像，检测到 {len(segments)} 个服装分割",
+                "segments": segments
+            })
+
+        except Exception as e:
+            logger.error(f"服装检测错误: {e}")
+            return jsonify({
+                "success": False,
+                "message": f"服装检测错误: {str(e)}"
+            }), 500
+
+    except Exception as e:
+        logger.error(f"意外错误: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"意外错误: {str(e)}"
+        }), 500

@@ -8,83 +8,77 @@ from pathlib import Path
 import time
 import threading
 
+
 class ImageSimilarityViT:
     def __init__(self):
-        # Load pre-trained ViT model
+        # 加载预训练模型
         self.weights = ViT_B_16_Weights.IMAGENET1K_V1
         self.model = vit_b_16(weights=self.weights)
         self.model.eval()
-        # 移除最后一层分类器以获取特征向量
-        self.model.heads = torch.nn.Identity()
+        self.model.heads = torch.nn.Identity()  # 移除分类头以获取特征向量
 
-        # 调整预处理逻辑
+        # 预处理流程（保留ViT标准预处理）
         self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),  # ViT模型通常使用224x224尺寸
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.5, 0.5, 0.5],  # 根据ViT模型的要求调整归一化参数
-                std=[0.5, 0.5, 0.5]
-            )
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ])
 
-        # 重新定义模型锁
         self._model_lock = threading.Lock()
 
     def extract_feature(self, img_input):
-        start_time = time.time()
-
-        # 处理不同的输入类型
-        img = self._handle_input(img_input)
-
-        # 预处理图像
-        img_t = self.transform(img).unsqueeze(0)
-
-        # 使用锁确保线程安全
+        """特征提取+L2归一化"""
         with self._model_lock:
+            img = self._handle_input(img_input)
+            img_t = self.transform(img).unsqueeze(0)
             with torch.no_grad():
-                # 前向传播
-                outputs = self.model(img_t)
-                # 可以考虑提取注意力层的输出，这里简单返回最终的特征向量
-                feat = outputs
-
-        feature = feat.squeeze(0).numpy()
-        print(f"Feature extraction time: {time.time() - start_time:.4f}s")
-        return feature
+                feat = self.model(img_t).squeeze(0).numpy()
+            # L2归一化确保特征向量范数为1（提升距离度量稳定性）
+            return feat / np.linalg.norm(feat) if np.linalg.norm(feat) != 0 else feat
 
     def _handle_input(self, img_input):
-        if isinstance(img_input, (str, Path)):  # 文件路径
+        """输入类型处理（保留原逻辑）"""
+        if isinstance(img_input, (str, Path)):
             img = Image.open(img_input).convert('RGB')
-        elif isinstance(img_input, Image.Image):  # PIL图像
+        elif isinstance(img_input, Image.Image):
             img = img_input
-        elif isinstance(img_input, np.ndarray):  # NumPy数组
+        elif isinstance(img_input, np.ndarray):
             img = Image.fromarray(img_input)
         else:
             raise ValueError("Unsupported input type")
         return img
 
     @staticmethod
-    def euclidean_distance(vec1, vec2):
-        distance = np.linalg.norm(vec1 - vec2)
-        return 1 / (1 + distance)
+    def cosine_similarity(vec1, vec2):
+        """余弦相似度归一化到[0,1]"""
+        return (np.dot(vec1, vec2) + 1) / 2  # 原范围[-1,1]映射到[0,1]
 
     @staticmethod
-    def manhattan_distance(vec1, vec2):
-        distance = np.sum(np.abs(vec1 - vec2))
-        return 1 / (1 + distance)
+    def euclidean_similarity(vec1, vec2):
+        """欧几里得距离+高斯核"""
+        dist = np.linalg.norm(vec1 - vec2)
+        sigma = np.sqrt(vec1.shape[0])  # 自适应带宽（特征维度平方根）
+        return np.exp(-dist**2 / (2 * sigma**2))  # 映射到(0,1]
+
+    @staticmethod
+    def manhattan_similarity(vec1, vec2):
+        """曼哈顿距离+理论上界归一化"""
+        dist = np.sum(np.abs(vec1 - vec2))
+        max_dist = 2 * vec1.shape[0]  # 归一化上界（L1范数最大可能值）
+        return 1 - (dist / max_dist) if max_dist != 0 else 0  # 映射到[0,1]
 
     def compare_similarities(self, single_dict, images_dict, metric='cosine'):
+        """相似度计算主逻辑"""
         single_name, single_vec = list(single_dict.items())[0]
-        if metric == 'cosine':
-            similarity_func = self.cosine_similarity
-        elif metric == 'euclidean':
-            similarity_func = self.euclidean_distance
-        elif metric == 'manhattan':
-            similarity_func = self.manhattan_distance
-        else:
-            raise ValueError("Unsupported similarity metric")
 
-        return [(name, similarity_func(single_vec, vec)) for name, vec in images_dict.items()]
+        # 度量方法映射
+        metric_funcs = {
+            'cosine': self.cosine_similarity,
+            'euclidean': self.euclidean_similarity,
+            'manhattan': self.manhattan_similarity
+        }
+        if metric not in metric_funcs:
+            raise ValueError(f"Unsupported metric: {metric}")
 
-    @staticmethod
-    def cosine_similarity(vec1, vec2):
-        return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+        return [(name, metric_funcs[metric](single_vec, vec))
+                for name, vec in images_dict.items()]

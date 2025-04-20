@@ -4,18 +4,13 @@
 import argparse
 import sys
 from pathlib import Path
-from PIL import Image
-import numpy as np
 import base64
-import json
-import pickle
-import shutil
-import io
 import time
 
-# 导入 ImageSimilarity 类和 ImageSimilarityViT 类
+# 导入 ImageSimilarity 类、ImageSimilarityViT 类和 ImageSimilarityDINOv2 类
 from src.core.image_similarity import ImageSimilarity
 from src.core.image_similarity_vit import ImageSimilarityViT
+from src.core.image_similarity_DINOv2 import ImageSimilarityDINOv2
 
 
 def parse_arguments():
@@ -113,6 +108,7 @@ def main():
     # 初始化模型
     resnet_model = ImageSimilarity()
     vit_model = ImageSimilarityViT()
+    dinov2_model = ImageSimilarityDINOv2()
 
     # 遍历每个测试组
     for group_dir in image_dir.iterdir():
@@ -142,6 +138,13 @@ def main():
                 # 计算 ViT 模型的相似度，使用指定的相似度计算方法
                 vit_similarity, vit_time = calculate_similarity(vit_model, image_path1, image_path2, metric=metric)
                 save_results(image_sub_dir, "ViT", vit_similarity, vit_time, metric, f)
+
+                # 不同模型结果间空一行
+                f.write("\n")
+
+                # 计算 DINOv2 模型的相似度，使用指定的相似度计算方法
+                dinov2_similarity, dinov2_time = calculate_similarity(dinov2_model, image_path1, image_path2, metric=metric)
+                save_results(image_sub_dir, "DINOv2", dinov2_similarity, dinov2_time, metric, f)
 
             print(f"✅ 相似图片细节信息已保存到 {details_file}")
 

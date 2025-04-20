@@ -19,6 +19,8 @@ import io
 
 # 导入 ImageSimilarity 类
 from src.core.image_similarity import ImageSimilarity
+from src.core.image_similarity_vit import ImageSimilarityViT
+
 from src.core.groundingdino_handler import ClothingDetector
 from src.repo.split_images_repo import select_image_data_by_id, select_multiple_image_data_by_ids
 
@@ -206,7 +208,8 @@ def main():
     test_dir.mkdir(parents=True, exist_ok=True)
 
     # 初始化 ImageSimilarity 类
-    similarity = ImageSimilarity()
+    # similarity = ImageSimilarity()
+    similarity = ImageSimilarityViT()
 
     # 加载向量索引
     index, id_map = load_vector_index(root_dir)

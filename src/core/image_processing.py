@@ -102,28 +102,32 @@ class ImageProcessor:
         logger.info(f"Segments combined horizontally into one image of size ({original_height}, {original_width}).")
         return combined_image[:, :original_width, :]
 
-    def pad_image(self, image: Image.Image, target_size: Tuple[int, int]) -> Image.Image:
+    def pad_image(self, image: Image.Image) -> Image.Image:
         """
         Pad or resize an image to the target size and center it.
+        target_size: 448*896.
 
         Args:
             image (Image.Image): The input image.
-            target_size (Tuple[int, int]): The target size (width, height).
 
         Returns:
             Image.Image: The padded image.
         """
-        iw, ih = image.size  # Original image dimensions
-        w, h = target_size  # Target dimensions
-        scale = min(w / iw, h / ih)  # Scale ratio
-        nw = int(iw * scale)
-        nh = int(ih * scale)
+        min_width, min_height = 448, 896
+        iw, ih = image.size
 
-        image = image.resize((nw, nh), Image.Resampling.LANCZOS)
-        new_image = Image.new('RGB', target_size, (255, 255, 255))  # White background
-        new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))  # Center the image
-        logger.info(f"Image padded and resized to {target_size}.")
-        return new_image
+        # Calculate padding for width and height independently
+        pad_width = max(0, min_width - iw)
+        pad_height = max(0, min_height - ih)
+        final_w = iw + pad_width
+        final_h = ih + pad_height
+
+        # Create grey background (RGB 128,128,128) and paste original image in center
+        padded_image = Image.new('RGB', (final_w, final_h), (128, 128, 128))
+        padded_image.paste(image, (pad_width // 2, pad_height // 2))
+
+        logger.info(f"Padded image from {iw}x{ih} to {final_w}x{final_h}")
+        return padded_image
 
     def run_inference(self, model, transform, image: np.ndarray, text_prompt: str,
                       box_threshold: float, frame_window=None) -> List[np.ndarray]:
@@ -141,6 +145,18 @@ class ImageProcessor:
         Returns:
             List[np.ndarray]: A list of detected image segments.
         """
+        original_pil = Image.fromarray(image)
+        orig_width, orig_height = original_pil.size
+        is_padded = orig_width < 448 or orig_height < 896  # 新增：判断是否进行过padding
+
+        # 仅当宽度<448 **或** 高度<896时执行填充
+        if is_padded:
+            logger.info(f"原图尺寸不足 ({orig_width}x{orig_height}), 执行填充处理")
+            padded_pil = self.pad_image(original_pil)
+            image = np.array(padded_pil)  # 转换回numpy数组
+        else:
+            logger.info(f"原图尺寸足够 ({orig_width}x{orig_height}), 无需填充")
+
         height, width, _ = image.shape
         aspect_ratio = width / height
 
@@ -170,15 +186,24 @@ class ImageProcessor:
                 annotated_segment, detection = annotate(segment, boxes=boxes, logits=logits, phrases=phrases)
                 annotated_segments.append(annotated_segment)
 
-                # Extract each bounding box region
+                # 提取每个边界框区域（分情况过滤）
                 for box in detection.xyxy:
                     x1, y1, x2, y2 = map(int, box)
                     bbox_width = x2 - x1
                     bbox_height = y2 - y1
-                    # Filter out bounding boxes that are too small
-                    if max(160, segment.shape[1] / 5) <= bbox_width <= bbox_height:
-                        bbox_image = segment[y1:y2, x1:x2]
-                        bboxes.append(bbox_image)
+                    width_min = max(160, segment.shape[1] / 5)  # 段宽度的1/5或160px取较大值
+
+                    if is_padded:
+                        # 经过padding的图片：宽度≥width_min 且 高度≥160px
+                        height_min = 160
+                        if bbox_width >= width_min and bbox_height >= height_min:
+                            bbox_image = segment[y1:y2, x1:x2]
+                            bboxes.append(bbox_image)
+                    else:
+                        # 未经过padding的图片：保持原逻辑（宽度在 [width_min, 高度] 之间）
+                        if width_min <= bbox_width <= bbox_height:
+                            bbox_image = segment[y1:y2, x1:x2]
+                            bboxes.append(bbox_image)
             except Exception as e:
                 logger.error(f"Error during inference: {e}")
 

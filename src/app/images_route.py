@@ -5,9 +5,12 @@ from flask_cors import cross_origin, CORS
 from src.repo.images_repo import create_image_feature_db, read_image_feature_db, update_image_feature_db, \
     delete_image_feature_db
 
-# 定义一个 Blueprint 来组织路由
+# 定义一个 Blueprint 来组织路由，__init__文件注册Blueprint
 api_bp = Blueprint('images_route', __name__)
+
+# 允许跨域
 CORS(api_bp)
+
 @api_bp.route("/image_features", methods=["POST", "OPTIONS"])
 @cross_origin()
 def create_record():
@@ -28,7 +31,9 @@ def create_record():
     if not image_id or not image_path or not features:
         return jsonify({"success": False, "message": "请填写完整信息！"}), 400
 
+    #调用方法
     success = create_image_feature_db(image_id, image_path, features)
+
     if success:
         return jsonify({"success": True, "message": f"创建记录成功（image_id={image_id}）"})
     else:

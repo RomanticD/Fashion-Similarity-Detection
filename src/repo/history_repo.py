@@ -9,14 +9,14 @@ def insert_search_history(data):
         with conn.cursor() as cursor:
             sql = """
                 INSERT INTO image_history (
-                    search_id, search_image_id,
+                    user_id, search_image_id,
                     result_image_id_1, result_image_id_2, result_image_id_3,
                     similarity_1, similarity_2, similarity_3
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (
-                data['search_id'],
+                data['user_id'],
                 data['search_image_id'],
                 data.get('result_image_id_1'),
                 data.get('result_image_id_2'),
@@ -28,7 +28,7 @@ def insert_search_history(data):
         conn.commit()
         return True
     except Exception as e:
-        print("Error inserting into search_history:", e)
+        print("Error inserting into image_history:", e)
         return False
     finally:
         conn.close()

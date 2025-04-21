@@ -5,7 +5,7 @@ import logging
 import time
 
 from src.repo.images_repo import create_splitted_image_db, read_splitted_image_db, update_splitted_image_db, \
-    delete_splitted_image_db, get_splitted_images_by_original_id
+    delete_split_image_db, get_splitted_images_by_original_id
 from src.core.vector_index import VectorIndex
 
 # 定义一个 Blueprint 来组织路由，__init__文件注册Blueprint
@@ -136,7 +136,7 @@ def delete_record(splitted_image_id):
     URL: /splitted_images/<splitted_image_id>
     """
     logger.info(f"正在删除图片记录: {splitted_image_id}")
-    success = delete_splitted_image_db(splitted_image_id)
+    success = delete_split_image_db(splitted_image_id)
     
     if not success:
         logger.error(f"从数据库中删除记录失败: {splitted_image_id}")

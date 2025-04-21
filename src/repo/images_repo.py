@@ -102,20 +102,35 @@ def update_splitted_image_db(splitted_image_id, new_path=None, new_original_id=N
         conn.close()
 
 
-def delete_splitted_image_db(splitted_image_id):
+def delete_split_image_db(splitted_image_id):
+    from src.core.vector_index import VectorIndex  # 导入放在函数内部以避免循环导入
+
     conn = get_connection()
+    success = False
     try:
         with conn.cursor() as cursor:
             sql = "DELETE FROM splitted_images WHERE id = %s"
             cursor.execute(sql, (splitted_image_id,))
         conn.commit()
-        return True
+        success = True
     except Exception as e:
-        print("Error deleting splitted image record:", e)
+        print("Error deleting splitted_image:", e)
         conn.rollback()
-        return False
+        success = False
     finally:
         conn.close()
+
+    # 如果删除成功，重建向量索引
+    if success:
+        try:
+            # 创建向量索引实例并重建索引
+            vector_index = VectorIndex()
+            vector_index.rebuild_index()
+            print(f"Vector index rebuilt after deleting image {splitted_image_id}")
+        except Exception as e:
+            print(f"Warning: Failed to rebuild vector index after deleting image: {e}")
+
+    return success
 
 
 def get_splitted_images_by_original_id(original_image_id):

@@ -16,6 +16,9 @@ class ImageProcessor:
     A class providing image processing utilities for the detection pipeline.
     """
 
+    MIN_PAD_WIDTH = 448
+    MIN_PAD_HEIGHT = 896
+
     def split_image_vertically(self, image: np.ndarray, segment_height: int) -> List[np.ndarray]:
         """
         Split an image vertically into multiple segments.
@@ -104,8 +107,7 @@ class ImageProcessor:
 
     def pad_image(self, image: Image.Image) -> Image.Image:
         """
-        Pad or resize an image to the target size and center it.
-        target_size: 448*896.
+        Pad or resize an image to the target size ({MIN_PAD_WIDTH}x{MIN_PAD_HEIGHT}) and center it.
 
         Args:
             image (Image.Image): The input image.
@@ -113,21 +115,19 @@ class ImageProcessor:
         Returns:
             Image.Image: The padded image.
         """
-        min_width, min_height = 448, 896
         iw, ih = image.size
+        target_width, target_height = self.MIN_PAD_WIDTH, self.MIN_PAD_HEIGHT  # 使用类常量
 
-        # Calculate padding for width and height independently
-        pad_width = max(0, min_width - iw)
-        pad_height = max(0, min_height - ih)
-        final_w = iw + pad_width
-        final_h = ih + pad_height
+        scale = min(target_width / iw, target_height / ih)
+        nw = int(iw * scale)
+        nh = int(ih * scale)
 
-        # Create grey background (RGB 128,128,128) and paste original image in center
-        padded_image = Image.new('RGB', (final_w, final_h), (128, 128, 128))
-        padded_image.paste(image, (pad_width // 2, pad_height // 2))
+        image = image.resize((nw, nh), Image.Resampling.LANCZOS)
+        new_image = Image.new('RGB', (target_width, target_height), (255, 255, 255))
+        new_image.paste(image, ((target_width - nw) // 2, (target_height - nh) // 2))
 
-        logger.info(f"Padded image from {iw}x{ih} to {final_w}x{final_h}")
-        return padded_image
+        logger.info(f"Image padded/resized to {target_width}x{target_height} (original: {iw}x{ih})")
+        return new_image
 
     def run_inference(self, model, transform, image: np.ndarray, text_prompt: str,
                       box_threshold: float, frame_window=None) -> List[np.ndarray]:
@@ -147,29 +147,29 @@ class ImageProcessor:
         """
         original_pil = Image.fromarray(image)
         orig_width, orig_height = original_pil.size
-        is_padded = orig_width < 448 or orig_height < 896  # 新增：判断是否进行过padding
+        # 使用类常量判断是否需要 padding
+        is_padded = orig_width < self.MIN_PAD_WIDTH or orig_height < self.MIN_PAD_HEIGHT
 
-        # 仅当宽度<448 **或** 高度<896时执行填充
         if is_padded:
-            logger.info(f"原图尺寸不足 ({orig_width}x{orig_height}), 执行填充处理")
+            logger.info(f"Original image size insufficient ({orig_width}x{orig_height}), applying padding")
             padded_pil = self.pad_image(original_pil)
-            image = np.array(padded_pil)  # 转换回numpy数组
+            image = np.array(padded_pil)
         else:
-            logger.info(f"原图尺寸足够 ({orig_width}x{orig_height}), 无需填充")
+            logger.info(f"Original image size sufficient ({orig_width}x{orig_height}), no padding needed")
 
         height, width, _ = image.shape
         aspect_ratio = width / height
 
-        if aspect_ratio <= 1 / 3:  # 1X3 以上
+        if aspect_ratio <= 1 / 3:  # 1:3 or taller
             segment_height = width * 3
             segments = self.split_image_vertically(image, segment_height)
-        elif aspect_ratio >= 3:  # 3X1 以上
+        elif aspect_ratio >= 3:  # 3:1 or wider
             segment_width = height * 3
             segments = self.split_image_horizontally(image, segment_width)
-        else:  # 宽高比合适，直接检测
+        else:  # Balanced aspect ratio
             segments = [image]
 
-        bboxes = []  # Store images of each bounding box region
+        bboxes = []
         annotated_segments = []
 
         for segment in segments:
@@ -186,28 +186,23 @@ class ImageProcessor:
                 annotated_segment, detection = annotate(segment, boxes=boxes, logits=logits, phrases=phrases)
                 annotated_segments.append(annotated_segment)
 
-                # 提取每个边界框区域（分情况过滤）
                 for box in detection.xyxy:
                     x1, y1, x2, y2 = map(int, box)
                     bbox_width = x2 - x1
                     bbox_height = y2 - y1
-                    width_min = max(160, segment.shape[1] / 5)  # 段宽度的1/5或160px取较大值
+                    width_min = max(160, segment.shape[1] / 5)  # 保留原有逻辑
 
                     if is_padded:
-                        # 经过padding的图片：宽度≥width_min 且 高度≥160px
-                        height_min = 160
-                        if bbox_width >= width_min and bbox_height >= height_min:
+                        if bbox_width >= width_min and bbox_height >= 160:
                             bbox_image = segment[y1:y2, x1:x2]
                             bboxes.append(bbox_image)
                     else:
-                        # 未经过padding的图片：保持原逻辑（宽度在 [width_min, 高度] 之间）
                         if width_min <= bbox_width <= bbox_height:
                             bbox_image = segment[y1:y2, x1:x2]
                             bboxes.append(bbox_image)
             except Exception as e:
                 logger.error(f"Error during inference: {e}")
 
-        # Combine annotated segments if needed
         if frame_window is not None:
             if aspect_ratio <= 1 / 3:
                 annotated_image = self.combine_segments_vertically(

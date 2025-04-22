@@ -7,7 +7,9 @@ from PIL import Image
 
 from src.repo.split_images_repo import save_to_db
 from src.utils.data_conversion import numpy_to_base64
-from src.core.image_similarity import ImageSimilarity
+from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
+# 导入 ViT 类
+# from src.core.image_similarity.image_similarity_vit import ImageSimilarityViT
 
 
 class ImageUploader:
@@ -19,7 +21,8 @@ class ImageUploader:
         """
         Initialize the image uploader.
         """
-        self.similarity_model = ImageSimilarity()
+        self.similarity_model = ImageSimilarityResNet50()
+        # self.similarity_model = ImageSimilarityViT()
 
     def upload_splitted_image_to_db(self, image_data: np.ndarray, splitted_image_id: str,
                                     splitted_image_path: str, original_image_id: str,

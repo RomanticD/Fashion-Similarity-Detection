@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 
-from src.core.image_similarity import ImageSimilarity
+from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
 from src.core.image_processing import ImageProcessor
 
 # Set up Python path
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         print(f"Saved segmented image: {save_path}")
 
     # Load and compare features
-    similarity = ImageSimilarity()
+    similarity = ImageSimilarityResNet50()
 
     # Load segmented image features
     segmented_features = {}

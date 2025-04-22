@@ -18,11 +18,10 @@ import shutil
 import io
 
 # 导入 ImageSimilarity 类
-from src.core.image_similarity import ImageSimilarity
-from src.core.image_similarity_vit import ImageSimilarityViT
+from src.core.image_similarity.image_similarity_vit import ImageSimilarityViT
 
 from src.core.groundingdino_handler import ClothingDetector
-from src.repo.split_images_repo import select_image_data_by_id, select_multiple_image_data_by_ids
+from src.repo.split_images_repo import select_multiple_image_data_by_ids
 
 
 def parse_arguments():

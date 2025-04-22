@@ -8,9 +8,9 @@ import base64
 import time
 
 # 导入 ImageSimilarity 类、ImageSimilarityViT 类和 ImageSimilarityDINOv2 类
-from src.core.image_similarity import ImageSimilarity
-from src.core.image_similarity_vit import ImageSimilarityViT
-from src.core.image_similarity_DINOv2 import ImageSimilarityDINOv2
+from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
+from src.core.image_similarity.image_similarity_vit import ImageSimilarityViT
+from src.core.image_similarity.image_similarity_DINOv2 import ImageSimilarityDINOv2
 
 
 def parse_arguments():
@@ -106,7 +106,7 @@ def main():
     test_dir.mkdir(parents=True, exist_ok=True)
 
     # 初始化模型
-    resnet_model = ImageSimilarity()
+    resnet_model = ImageSimilarityResNet50()
     vit_model = ImageSimilarityViT()
     dinov2_model = ImageSimilarityDINOv2()
 

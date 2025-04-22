@@ -8,12 +8,15 @@ from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin, CORS
 
 from src.app.supabse_route import admin_required, token_required
-from src.core.image_similarity import ImageSimilarity
+from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
 from src.core.vector_index import VectorIndex
 from src.db.db_connect import get_connection
 from src.repo.split_images_repo import select_multiple_image_data_by_ids
 from src.utils.data_conversion import base64_to_numpy
 from src.utils.request_tracker import request_tracker, CancellationException
+
+# 导入 ViT 类
+# from src.core.image_similarity.image_similarity_vit import ImageSimilarityViT
 
 # Define a Blueprint to organize routes
 api_rp = Blueprint('images_relay', __name__)
@@ -24,7 +27,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create a thread-safe instance of ImageSimilarity
-image_similarity = ImageSimilarity()
+image_similarity = ImageSimilarityResNet50()
+# self.similarity_model = ImageSimilarityViT()
 vector_index = VectorIndex()
 
 

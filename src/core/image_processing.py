@@ -17,7 +17,9 @@ class ImageProcessor:
     """
 
     MIN_PAD_WIDTH = 448
-    MIN_PAD_HEIGHT = 896
+    MIN_PAD_HEIGHT = 1000
+
+    MIN_WIDTH = 160
 
     def split_image_vertically(self, image: np.ndarray, segment_height: int) -> List[np.ndarray]:
         """
@@ -107,26 +109,25 @@ class ImageProcessor:
 
     def pad_image(self, image: Image.Image) -> Image.Image:
         """
-        Pad or resize an image to the target size ({MIN_PAD_WIDTH}x{MIN_PAD_HEIGHT}) and center it.
-
-        Args:
-            image (Image.Image): The input image.
-
-        Returns:
-            Image.Image: The padded image.
+        独立填充宽度和高度至最小尺寸，不足时居中填充，不缩放原图
         """
         iw, ih = image.size
-        target_width, target_height = self.MIN_PAD_WIDTH, self.MIN_PAD_HEIGHT  # 使用类常量
+        target_width = max(iw, self.MIN_PAD_WIDTH)  # 宽度至少448
+        target_height = max(ih, self.MIN_PAD_HEIGHT)  # 高度至少1000
 
-        scale = min(target_width / iw, target_height / ih)
-        nw = int(iw * scale)
-        nh = int(ih * scale)
+        # 计算各方向填充量
+        pad_w = target_width - iw
+        pad_h = target_height - ih
+        left_pad = pad_w // 2
+        right_pad = pad_w - left_pad
+        top_pad = pad_h // 2
+        bottom_pad = pad_h - top_pad
 
-        image = image.resize((nw, nh), Image.Resampling.LANCZOS)
-        new_image = Image.new('RGB', (target_width, target_height), (255, 255, 255))
-        new_image.paste(image, ((target_width - nw) // 2, (target_height - nh) // 2))
+        # 创建填充后的图像（居中粘贴原图）
+        new_image = Image.new('RGB', (target_width, target_height), (128, 128, 128))  # 灰色背景
+        new_image.paste(image, (left_pad, top_pad))  # 居中粘贴
 
-        logger.info(f"Image padded/resized to {target_width}x{target_height} (original: {iw}x{ih})")
+        logger.info(f"Image padded to {target_width}x{target_height} (original: {iw}x{ih})")
         return new_image
 
     def run_inference(self, model, transform, image: np.ndarray, text_prompt: str,
@@ -193,7 +194,7 @@ class ImageProcessor:
                     width_min = max(160, segment.shape[1] / 5)  # 保留原有逻辑
 
                     if is_padded:
-                        if bbox_width >= width_min and bbox_height >= 160:
+                        if bbox_width >= width_min and bbox_height >= self.MIN_WIDTH:
                             bbox_image = segment[y1:y2, x1:x2]
                             bboxes.append(bbox_image)
                     else:

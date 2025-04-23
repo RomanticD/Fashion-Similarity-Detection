@@ -1,3 +1,4 @@
+# Fashion-Similarity-Detection/training/utils/positive_pair_preprocess.py
 import json
 import shutil
 from pathlib import Path
@@ -17,11 +18,11 @@ RANDOM_SEED = 42                 # 随机种子（固定以确保可复现性）
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='随机抽取正样本对（支持6位文件名/动态序号）')
-    parser.add_argument('--batch_start', type=int, default=1,
+    parser.add_argument('--batch_start', type=int, default=20001,
                         help='批次起始数值ID（如1对应000001.json）')
-    parser.add_argument('--batch_end', type=int, default=10000,
+    parser.add_argument('--batch_end', type=int, default=30000,
                         help='批次结束数值ID（如10000对应010000.json）')
-    parser.add_argument('--pairs_to_extract', type=int, default=10,
+    parser.add_argument('--pairs_to_extract', type=int, default=500,
                         help='本次提取的正样本对数')
     parser.add_argument('--max_id_diff', type=int, default=1,
                         help='同款图片ID最大间隔（如1表示仅相邻ID配对）')

@@ -7,14 +7,14 @@ from src.core.groundingdino_handler import ClothingDetector  # 项目内置Groun
 # ======================
 # 可调整参数（直接在代码顶部手动定义）
 # ======================
-INPUT_PAIRS_DIR = Path("/Users/sunyuliang/Desktop/AppBuilder/Python/dinov2_train/positive_pairs")  # positive_pairs根目录
+INPUT_PAIRS_DIR = Path("/Users/sunyuliang/Desktop/AppBuilder/Python/dinov2_train/training_pairs")  # positive_pairs根目录
 TEXT_PROMPT = "clothes, garment, clothing item"  # 检测提示词（支持多语言）
-BOX_THRESHOLD = 0.1  # 检测阈值（降低至0.15提高灵敏度）
+BOX_THRESHOLD = 0.3  # 检测阈值（降低至0.15提高灵敏度）
 FORCE_PROCESS = True   # 未检测到服装时是否强制使用原图
 
 # 手动定义开始对和结束对（直接修改以下两行）
-START_PAIR = 1       # 起始pair编号（如10对应pair_0010）
-END_PAIR = 50         # 结束pair编号（如50对应pair_0050）
+START_PAIR = 1251       # 起始pair编号（如10对应pair_0010）
+END_PAIR = 1750         # 结束pair编号（如50对应pair_0050）
 
 
 def get_valid_image_paths(pairs_dir, start_pair, end_pair):

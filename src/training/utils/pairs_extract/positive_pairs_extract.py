@@ -1,4 +1,4 @@
-# Fashion-Similarity-Detection/training/utils/positive_pair_preprocess.py
+# Fashion-Similarity-Detection/training/utils/positive_pairs_extract.py
 import json
 import shutil
 from pathlib import Path
@@ -12,7 +12,7 @@ from collections import defaultdict
 INPUT_DIR = "/Users/sunyuliang/Desktop/AppBuilder/Python/deepfashion_train"  # 原始数据目录
 IMAGE_DIR_NAME = "image"         # 图片文件夹名（如"image"或"images"）
 ANNO_DIR_NAME = "annos"          # 标注文件夹名
-OUTPUT_BASE_DIR = "/Users/sunyuliang/Desktop/AppBuilder/Python/dinov2_train/positive_pairs"  # 输出基目录
+OUTPUT_BASE_DIR = "/Users/sunyuliang/Desktop/AppBuilder/Python/dinov2_train/training_pairs"  # 输出基目录
 RANDOM_SEED = 42                 # 随机种子（固定以确保可复现性）
 
 

@@ -44,15 +44,15 @@ class VectorIndex:
         Returns:
             tuple: (index, ids, vectors) or (None, None, None) if no vectors found.
         """
-        logger.info("Building vector index from database vectors...")
+        logger.info("Building vector index from database vectors in split_images table...")
 
         # Fetch all vectors from the database
         rows = select_all_vectors()
         if not rows:
-            logger.error("No vectors found in the database")
+            logger.error("No vectors found in the split_images database")
             return None, None, None
 
-        logger.info(f"Retrieved {len(rows)} vectors from database")
+        logger.info(f"Retrieved {len(rows)} vectors from split_images database")
 
         # Extract vectors and IDs
         vectors = []
@@ -87,7 +87,7 @@ class VectorIndex:
         )
         index.fit(normalized_vectors)
 
-        logger.info(f"Added {len(vectors)} vectors to Nearest Neighbors index")
+        logger.info(f"Added {len(vectors)} vectors to Nearest Neighbors index from split_images table")
 
         # Save ID mapping
         with open(self.id_map_file, 'w') as f:
@@ -116,7 +116,7 @@ class VectorIndex:
             tuple: (index, ids, vectors) or build a new index if files don't exist.
         """
         if not self.index_file.exists() or not self.id_map_file.exists():
-            logger.info("Index files not found, building new index")
+            logger.info("Index files not found, building new index from split_images table")
             return self.build_index()
 
         try:
@@ -139,7 +139,7 @@ class VectorIndex:
             return index, ids, vectors
         except Exception as e:
             logger.error(f"Error loading index: {e}")
-            logger.info("Building new index")
+            logger.info("Building new index from split_images table")
             return self.build_index()
 
     def search_similar_images(self, feature_vector, num=5):

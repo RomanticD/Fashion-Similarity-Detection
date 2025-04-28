@@ -10,23 +10,36 @@ logger = logging.getLogger(__name__)
 _db_lock = threading.Lock()
 
 
-def create_split_image_db(splitted_image_id, splitted_image_path, original_image_id, bounding_box=None):
+def create_split_image_db(splitted_image_id, splitted_image_path, original_image_id, bounding_box=None, vector=None, splitted_image_data=None):
     """
-    向 splitted_images 表插入一条记录。
+    向split_images表插入一条记录
     """
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
             sql = """
-                INSERT INTO splitted_images
-                    (splitted_image_id, splitted_image_path, original_image_id, bounding_box)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO split_images (
+                    splitted_image_id, 
+                    splitted_image_path, 
+                    original_image_id, 
+                    bounding_box, 
+                    vector, 
+                    splitted_image_data
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(sql, (splitted_image_id, splitted_image_path, original_image_id, bounding_box))
+            cursor.execute(sql, (
+                splitted_image_id, 
+                splitted_image_path, 
+                original_image_id, 
+                bounding_box, 
+                vector, 
+                splitted_image_data
+            ))
         conn.commit()
         return True
     except Exception as e:
-        print("Error creating splitted_image:", e)
+        logger.error(f"Error creating split image record: {e}")
         conn.rollback()
         return False
     finally:
@@ -34,45 +47,73 @@ def create_split_image_db(splitted_image_id, splitted_image_path, original_image
 
 
 def read_split_image_db(splitted_image_id):
+    """
+    从split_images表读取一条记录
+    """
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            sql = "SELECT * FROM splitted_images WHERE splitted_image_id = %s"
+            sql = "SELECT * FROM split_images WHERE splitted_image_id = %s"
             cursor.execute(sql, (splitted_image_id,))
             result = cursor.fetchone()
         return result
     except Exception as e:
-        print("Error reading splitted_image:", e)
+        logger.error(f"Error reading split image record: {e}")
         return None
     finally:
         conn.close()
 
 
-def update_split_image_db(splitted_image_id, new_path=None, new_bounding_box=None):
+def update_split_image_db(splitted_image_id, new_path=None, new_original_id=None, new_box=None, new_vector=None, new_image_data=None):
+    """
+    更新split_images表中的一条记录
+    """
     conn = get_connection()
     try:
-        fields = []
-        values = []
-        if new_path is not None:
-            fields.append("splitted_image_path = %s")
-            values.append(new_path)
-        if new_bounding_box is not None:
-            fields.append("bounding_box = %s")
-            values.append(new_bounding_box)
-
-        if not fields:  # 没有要更新的字段
-            return False
-
-        set_clause = ", ".join(fields)
-        sql = f"UPDATE splitted_images SET {set_clause} WHERE splitted_image_id = %s"
-        values.append(splitted_image_id)
-
         with conn.cursor() as cursor:
-            cursor.execute(sql, values)
+            # Build the update query dynamically based on provided parameters
+            update_parts = []
+            params = []
+            
+            if new_path is not None:
+                update_parts.append("splitted_image_path = %s")
+                params.append(new_path)
+                
+            if new_original_id is not None:
+                update_parts.append("original_image_id = %s")
+                params.append(new_original_id)
+                
+            if new_box is not None:
+                update_parts.append("bounding_box = %s")
+                params.append(new_box)
+                
+            if new_vector is not None:
+                update_parts.append("vector = %s")
+                params.append(new_vector)
+                
+            if new_image_data is not None:
+                update_parts.append("splitted_image_data = %s")
+                params.append(new_image_data)
+            
+            # If no parameters were provided, return early
+            if not update_parts:
+                return False
+                
+            # Complete the parameter list with the ID
+            params.append(splitted_image_id)
+            
+            # Construct and execute the SQL query
+            sql = f"""
+                UPDATE split_images
+                SET {', '.join(update_parts)}
+                WHERE splitted_image_id = %s
+            """
+            cursor.execute(sql, tuple(params))
+            
         conn.commit()
         return True
     except Exception as e:
-        print("Error updating splitted_image:", e)
+        logger.error(f"Error updating split image record: {e}")
         conn.rollback()
         return False
     finally:
@@ -80,15 +121,18 @@ def update_split_image_db(splitted_image_id, new_path=None, new_bounding_box=Non
 
 
 def delete_split_image_db(splitted_image_id):
+    """
+    从split_images表删除一条记录
+    """
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            sql = "DELETE FROM splitted_images WHERE splitted_image_id = %s"
+            sql = "DELETE FROM split_images WHERE splitted_image_id = %s"
             cursor.execute(sql, (splitted_image_id,))
         conn.commit()
         return True
     except Exception as e:
-        print("Error deleting splitted_image:", e)
+        logger.error(f"Error deleting split image record: {e}")
         conn.rollback()
         return False
     finally:
@@ -96,24 +140,27 @@ def delete_split_image_db(splitted_image_id):
 
 
 def save_to_db(splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector):
+    """
+    保存分割后的图片数据到split_images表
+    """
     # Use connection lock to prevent concurrent database issues
     with _db_lock:
         # 连接到数据库
-        conn = get_connection()  # 你可能需要在这里配置数据库连接
+        conn = get_connection()
         cursor = conn.cursor()
 
         try:
             # 插入图像数据和特征到数据库
             cursor.execute("""
-                INSERT INTO splitted_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
+                INSERT INTO split_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector))
 
             # 提交事务
             conn.commit()
-            logger.info(f"Image {splitted_image_id} uploaded to the database along with its feature.")
+            logger.info(f"Image {splitted_image_id} uploaded to the new split_images table along with its feature.")
         except Exception as e:
-            logger.error(f"Error uploading image to the database: {e}")
+            logger.error(f"Error uploading image to the split_images table: {e}")
             conn.rollback()
         finally:
             # 关闭数据库连接
@@ -122,20 +169,23 @@ def save_to_db(splitted_image_id, splitted_image_path, original_image_id, boundi
 
 
 def select_all_vectors():
+    """
+    获取split_images表中所有图片的向量特征
+    """
     with _db_lock:
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT id, vector FROM splitted_images")
+                cursor.execute("SELECT id, vector FROM split_images")
                 rows = cursor.fetchall()
                 # 如果没有查询到数据，返回空列表
                 if not rows:
-                    print("No data found in the 'splitted_images' table.")
+                    logger.info("No data found in the 'split_images' table.")
                     return []
 
                 return rows
         except Exception as e:
-            print(f"Error during select: {e}")
+            logger.error(f"Error during select: {e}")
             conn.rollback()  # 回滚事务
             return []  # 发生异常时返回空列表而不是 False
         finally:
@@ -143,6 +193,9 @@ def select_all_vectors():
 
 
 def select_image_data_by_id(id):
+    """
+    通过ID获取split_images表中的图片数据
+    """
     with _db_lock:
         conn = get_connection()
         if not conn:
@@ -151,7 +204,7 @@ def select_image_data_by_id(id):
 
         try:
             with conn.cursor() as cursor:
-                sql = "SELECT splitted_image_data FROM splitted_images WHERE id = %s"
+                sql = "SELECT splitted_image_data FROM split_images WHERE id = %s"
                 logger.debug(f"Executing SQL: {sql} with id={id}")
                 cursor.execute(sql, (id,))
                 row = cursor.fetchone()
@@ -171,8 +224,8 @@ def select_image_data_by_id(id):
 
 def select_multiple_image_data_by_ids(ids):
     """
-    Fetch multiple image records by their IDs
-
+    通过ID列表获取split_images表中的多张图片数据
+    
     Parameters:
     ids (list): List of image IDs to fetch
 
@@ -194,7 +247,7 @@ def select_multiple_image_data_by_ids(ids):
                 for i in range(0, len(ids), batch_size):
                     batch_ids = ids[i:i + batch_size]
                     placeholders = ', '.join(['%s'] * len(batch_ids))
-                    sql = f"SELECT id, splitted_image_data FROM splitted_images WHERE id IN ({placeholders})"
+                    sql = f"SELECT id, splitted_image_data FROM split_images WHERE id IN ({placeholders})"
                     cursor.execute(sql, batch_ids)
                     rows = cursor.fetchall()
 
@@ -204,7 +257,25 @@ def select_multiple_image_data_by_ids(ids):
 
                 return result
         except Exception as e:
-            print(f"Error fetching multiple image data: {e}")
+            logger.error(f"Error fetching multiple image data: {e}")
             return {}
         finally:
             conn.close()
+
+
+def get_split_images_by_original_id(original_image_id):
+    """
+    获取与原图相关联的所有分割图片记录
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            sql = "SELECT * FROM split_images WHERE original_image_id = %s"
+            cursor.execute(sql, (original_image_id,))
+            result = cursor.fetchall()
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching split images: {e}")
+        return []
+    finally:
+        conn.close()

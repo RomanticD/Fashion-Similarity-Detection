@@ -5,7 +5,8 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 
-from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
+# 使用微调后的模型
+from src.core.image_similarity import ImageSimilarity
 from src.core.image_processing import ImageProcessor
 
 # Set up Python path
@@ -166,18 +167,18 @@ if __name__ == "__main__":
         saved_paths.append(save_path)
         print(f"Saved segmented image: {save_path}")
 
-    # Load and compare features
-    similarity = ImageSimilarityResNet50()
+    # Load and compare features using fine-tuned model
+    similarity = ImageSimilarity
 
     # Load segmented image features
     segmented_features = {}
     for path in saved_paths:
-        feature_dict = similarity.load_single_image_feature_vector(path)
-        segmented_features.update(feature_dict)
+        feature = similarity.extract_feature(path)
+        segmented_features[str(path)] = feature
 
     # Load comparison image feature
     single_img_path = root_dir / "Assets" / "spilt_image_similarity_test_2.png"
-    single_feature = similarity.load_single_image_feature_vector(single_img_path)
+    single_feature = {str(single_img_path): similarity.extract_feature(single_img_path)}
 
     # Compare similarities
     similarity_results = similarity.compare_similarities(single_feature, segmented_features)
@@ -185,4 +186,4 @@ if __name__ == "__main__":
     # Print comparison results
     print(f"\nComparison image: {single_img_path.name}")
     for img_name, sim in sorted(similarity_results, key=lambda x: x[1], reverse=True):
-        print(f"Segmented region {img_name}: Similarity {sim:.4f}")
+        print(f"Segmented region {Path(img_name).name}: Similarity {sim:.4f}")

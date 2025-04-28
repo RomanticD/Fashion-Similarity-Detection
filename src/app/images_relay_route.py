@@ -8,10 +8,10 @@ from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin, CORS
 
 from src.app.supabse_route import admin_required, token_required
-from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
+from src.core.image_similarity import ImageSimilarity  # 使用新的微调模型
 from src.core.vector_index import VectorIndex
 from src.db.db_connect import get_connection
-from src.repo.split_images_repo import select_multiple_image_data_by_ids
+from src.repo.split_images_repo import select_multiple_image_data_by_ids  # 使用新的表操作函数
 from src.utils.data_conversion import base64_to_numpy
 from src.utils.request_tracker import request_tracker, CancellationException
 
@@ -26,9 +26,8 @@ CORS(api_rp)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create a thread-safe instance of ImageSimilarity
-image_similarity = ImageSimilarityResNet50()
-# self.similarity_model = ImageSimilarityViT()
+# 使用已经实例化的ImageSimilarity对象（非调用）
+image_similarity = ImageSimilarity
 vector_index = VectorIndex()
 
 
@@ -49,11 +48,11 @@ def image_relay():
         base64_image = data.get('image_base64')
 
         if not base64_image:
-            print("Error: No 'image_base64' field in request data")
+            logger.error("Error: No 'image_base64' field in request data")
             request_tracker.complete_request(request_id)
             return jsonify({"error": "'image_base64' field is required"}), 400
 
-        print(f"Return count: {num}, received image_base64: {base64_image[:30]}...")
+        logger.info(f"Return count: {num}, received image_base64: {base64_image[:30]}...")
 
         # Image conversion - wrap in try-except to handle cancellation
         try:
@@ -62,13 +61,13 @@ def image_relay():
             # Make this operation cancellable
             def convert_image():
                 image_np = base64_to_numpy(base64_image)
-                print(f"Image conversion time: {time.time() - convert_start:.4f} seconds")
+                logger.info(f"Image conversion time: {time.time() - convert_start:.4f} seconds")
                 return image_np
 
             image_np = request_tracker.run_cancellable(request_id, convert_image)
 
         except CancellationException:
-            print(f"Request {request_id} was cancelled during image conversion")
+            logger.info(f"Request {request_id} was cancelled during image conversion")
             request_tracker.complete_request(request_id)
             return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
@@ -81,10 +80,10 @@ def image_relay():
                 return image_similarity.extract_feature(image_np)
 
             image_feature = request_tracker.run_cancellable(request_id, extract_features)
-            print(f"Feature extraction time: {time.time() - feature_start:.4f} seconds")
+            logger.info(f"Feature extraction time: {time.time() - feature_start:.4f} seconds")
 
         except CancellationException:
-            print(f"Request {request_id} was cancelled during feature extraction")
+            logger.info(f"Request {request_id} was cancelled during feature extraction")
             request_tracker.complete_request(request_id)
             return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
@@ -97,15 +96,15 @@ def image_relay():
                 return vector_index.search_similar_images(image_feature, num)
 
             similarity_pairs = request_tracker.run_cancellable(request_id, search_vectors)
-            print(f"Vector search time: {time.time() - search_start:.4f} seconds")
+            logger.info(f"Vector search time: {time.time() - search_start:.4f} seconds")
 
         except CancellationException:
-            print(f"Request {request_id} was cancelled during vector search")
+            logger.info(f"Request {request_id} was cancelled during vector search")
             request_tracker.complete_request(request_id)
             return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
         if not similarity_pairs:
-            print("No similar images found")
+            logger.info("No similar images found")
             request_tracker.complete_request(request_id)
             return jsonify([])
 
@@ -121,7 +120,7 @@ def image_relay():
             all_image_data = request_tracker.run_cancellable(request_id, fetch_images)
 
         except CancellationException:
-            print(f"Request {request_id} was cancelled during database fetch")
+            logger.info(f"Request {request_id} was cancelled during database fetch")
             request_tracker.complete_request(request_id)
             return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
@@ -130,7 +129,7 @@ def image_relay():
         for idx, sim in similarity_pairs:
             # Check for cancellation directly in the loop
             if request_tracker.is_cancelled(request_id):
-                print(f"Request {request_id} was cancelled during result preparation")
+                logger.info(f"Request {request_id} was cancelled during result preparation")
                 request_tracker.complete_request(request_id)
                 return jsonify({"status": "cancelled", "message": "Processing cancelled by user"}), 200
 
@@ -145,16 +144,16 @@ def image_relay():
                     "processed_image_base64": base64_string
                 })
             else:
-                print(f"Image data not found for ID {idx}")
+                logger.warning(f"Image data not found for ID {idx}")
                 result.append({
                     "id": idx,
                     "similarity": float(sim),
                     "processed_image_base64": None
                 })
 
-        print(f"Image data fetch time: {time.time() - image_fetch_start:.4f} seconds")
+        logger.info(f"Image data fetch time: {time.time() - image_fetch_start:.4f} seconds")
         total_time = time.time() - start_time
-        print(f"Total execution time: {total_time:.4f} seconds")
+        logger.info(f"Total execution time: {total_time:.4f} seconds")
 
         # Mark request as complete
         request_tracker.complete_request(request_id)
@@ -167,8 +166,8 @@ def image_relay():
 
     except Exception as e:
         total_time = time.time() - start_time
-        print(f"Error occurred! Total execution time: {total_time:.4f} seconds")
-        print(f"Error details: {e}")
+        logger.error(f"Error occurred! Total execution time: {total_time:.4f} seconds")
+        logger.error(f"Error details: {e}")
         request_tracker.complete_request(request_id)
         return jsonify({"error": str(e), "execution_time": total_time}), 500
 

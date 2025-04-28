@@ -15,6 +15,8 @@ sys.path.append(str(groundingdino_path))
 # Import related modules
 from src.core.groundingdino_handler import ClothingDetector
 from src.db.uploads.image_upload import ImageUploader
+# Import VectorIndex for rebuilding after batch upload
+from src.core.vector_index import VectorIndex
 
 
 def process_single_image(image_path):
@@ -46,7 +48,7 @@ def process_single_image(image_path):
         image_dir = data_dir / image_name
         image_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize uploader
+        # Initialize uploader (now using fine-tuned model)
         uploader = ImageUploader()
 
         # Process and upload each segmented image
@@ -101,6 +103,19 @@ def batch_process_screenshots():
         all_uploaded_paths.extend(uploaded_paths)
 
     print(f"\nBatch processing complete! Uploaded {len(all_uploaded_paths)} segmented images.")
+    
+    # Rebuild vector index after batch upload
+    try:
+        print("Rebuilding vector index...")
+        vector_index = VectorIndex()
+        index_result = vector_index.rebuild_index()
+        if index_result[0] is not None:
+            print(f"Vector index rebuilt successfully with {len(index_result[1])} vectors.")
+        else:
+            print("Warning: Vector index rebuilding failed, but images were uploaded.")
+    except Exception as e:
+        print(f"Warning: Error rebuilding vector index: {e}")
+    
     return all_uploaded_paths
 
 
@@ -111,9 +126,11 @@ if __name__ == "__main__":
 
         # Print processing results
         if uploaded_files:
-            print("\nSuccessfully uploaded files:")
+            print("\nSuccessfully uploaded files to the split_images table:")
             for path in uploaded_files:
                 print(f" - {path}")
+            
+            print("\nImages were processed using the fine-tuned DINOv2 model.")
         else:
             print("\nNo files were successfully uploaded.")
 

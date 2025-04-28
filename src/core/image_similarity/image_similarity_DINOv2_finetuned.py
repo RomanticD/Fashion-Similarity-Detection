@@ -31,8 +31,16 @@ class ImageSimilarityDINOv2Finetuned(ImageSimilarityBase):
         # 加载训练好的参数
         self._load_pretrained_weights()
 
-        # 保持与训练一致的预处理流程
+        # 修改为确定性的预处理流程，移除随机变换
         self.transform = transforms.Compose([
+            transforms.Resize(256),  # 统一调整大小
+            transforms.CenterCrop(224),  # 中心裁剪，确保一致性
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+        # 保留训练时的数据增强流程用于参考
+        self.train_transform = transforms.Compose([
             transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomApply([

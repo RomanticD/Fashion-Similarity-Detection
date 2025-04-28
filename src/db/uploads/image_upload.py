@@ -7,9 +7,8 @@ from PIL import Image
 
 from src.repo.split_images_repo import save_to_db
 from src.utils.data_conversion import numpy_to_base64
-from src.core.image_similarity.image_similarity_resnet50 import ImageSimilarityResNet50
-# 导入 ViT 类
-# from src.core.image_similarity.image_similarity_vit import ImageSimilarityViT
+# 使用微调后的模型
+from src.core.image_similarity import ImageSimilarity
 
 
 class ImageUploader:
@@ -19,10 +18,10 @@ class ImageUploader:
 
     def __init__(self):
         """
-        Initialize the image uploader.
+        Initialize the image uploader with the fine-tuned model.
         """
-        self.similarity_model = ImageSimilarityResNet50()
-        # self.similarity_model = ImageSimilarityViT()
+        # 使用全局定义的微调模型实例
+        self.similarity_model = ImageSimilarity
 
     def upload_splitted_image_to_db(self, image_data: np.ndarray, splitted_image_id: str,
                                     splitted_image_path: str, original_image_id: str,
@@ -66,7 +65,7 @@ class ImageUploader:
         Returns:
             Path: The path where the image was saved.
         """
-        # Extract image features
+        # Extract image features using the fine-tuned model
         vector = self.similarity_model.extract_feature(image_array)
 
         # Save image to file system

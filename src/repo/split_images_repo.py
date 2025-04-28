@@ -142,6 +142,17 @@ def delete_split_image_db(splitted_image_id):
 def save_to_db(splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector):
     """
     保存分割后的图片数据到split_images表
+    
+    Args:
+        splitted_image_id (str): 分割图像ID
+        splitted_image_path (str): 分割图像路径
+        original_image_id (str): 原始图像ID
+        bounding_box (str): 边界框信息
+        binary_data (bytes): 图像二进制数据
+        vector (str): 特征向量JSON字符串
+        
+    Returns:
+        bool: 操作是否成功
     """
     # Use connection lock to prevent concurrent database issues
     with _db_lock:
@@ -150,18 +161,45 @@ def save_to_db(splitted_image_id, splitted_image_path, original_image_id, boundi
         cursor = conn.cursor()
 
         try:
-            # 插入图像数据和特征到数据库
-            cursor.execute("""
-                INSERT INTO split_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector))
+            logger.info(f"正在保存分割图像到数据库: {splitted_image_id}, 原图ID: {original_image_id}")
+            
+            # 检查必要参数
+            if not splitted_image_id or not binary_data or not vector:
+                logger.error(f"缺少必要参数: ID={splitted_image_id}, 有二进制数据={bool(binary_data)}, 有特征向量={bool(vector)}")
+                return False
+                
+            # 检查该ID是否已存在（防止重复）
+            cursor.execute("SELECT COUNT(*) FROM split_images WHERE splitted_image_id = %s", (splitted_image_id,))
+            if cursor.fetchone()[0] > 0:
+                logger.warning(f"分割图像ID已存在，将更新记录: {splitted_image_id}")
+                
+                # 更新现有记录
+                cursor.execute("""
+                    UPDATE split_images 
+                    SET splitted_image_path = %s, 
+                        original_image_id = %s, 
+                        bounding_box = %s, 
+                        splitted_image_data = %s, 
+                        vector = %s
+                    WHERE splitted_image_id = %s
+                """, (splitted_image_path, original_image_id, bounding_box, binary_data, vector, splitted_image_id))
+            else:
+                # 插入图像数据和特征到数据库
+                cursor.execute("""
+                    INSERT INTO split_images (splitted_image_id, splitted_image_path, original_image_id, bounding_box, splitted_image_data, vector)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (splitted_image_id, splitted_image_path, original_image_id, bounding_box, binary_data, vector))
 
             # 提交事务
             conn.commit()
-            logger.info(f"Image {splitted_image_id} uploaded to the new split_images table along with its feature.")
+            logger.info(f"图像 {splitted_image_id} 成功保存到split_images表，包含特征向量")
+            return True
         except Exception as e:
-            logger.error(f"Error uploading image to the split_images table: {e}")
+            logger.error(f"保存图像到split_images表时出错: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
             conn.rollback()
+            return False
         finally:
             # 关闭数据库连接
             cursor.close()

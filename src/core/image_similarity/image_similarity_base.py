@@ -30,19 +30,76 @@ class ImageSimilarityBase(metaclass=abc.ABCMeta):
         :return: PIL Image对象
         :raises ValueError: 不支持的输入类型
         """
+        image = None
+        
         if isinstance(img_input, (str, Path)):
             try:
-                return Image.open(img_input).convert('RGB')
+                # 获取文件基本信息用于日志记录
+                file_path = Path(img_input)
+                logger.info(f"正在读取图像文件: {file_path}")
+                
+                # 打开图像文件
+                image = Image.open(file_path)
+                
+                # 记录图像格式信息
+                logger.debug(f"图像文件格式: {image.format}, 模式: {image.mode}, 尺寸: {image.size}")
+                
+                # 检查非标准模式
+                if image.mode == 'RGBA':
+                    logger.info(f"检测到RGBA格式图像，处理透明通道: {file_path}")
+                    # 保留转换前的尺寸信息
+                    orig_size = image.size
+                    # 转换到RGB格式
+                    image = image.convert('RGB')
+                    logger.debug(f"已转换RGBA到RGB, 尺寸保持为: {orig_size}")
+                elif image.mode != 'RGB':
+                    logger.info(f"检测到非RGB格式图像 ({image.mode})，转换为RGB: {file_path}")
+                    image = image.convert('RGB')
+                
+                return image
             except Exception as e:
+                logger.error(f"文件路径读取失败: {str(e)}")
                 raise ValueError(f"文件路径读取失败: {str(e)}") from e
+                
         elif isinstance(img_input, Image.Image):
-            return img_input
+            image = img_input
+            logger.debug(f"接收到PIL图像对象, 模式: {image.mode}, 尺寸: {image.size}")
+            
+            # 检查非标准模式
+            if image.mode == 'RGBA':
+                logger.info("检测到RGBA格式PIL图像，处理透明通道")
+                image = image.convert('RGB')
+            elif image.mode != 'RGB':
+                logger.info(f"检测到非RGB格式PIL图像 ({image.mode})，转换为RGB")
+                image = image.convert('RGB')
+                
+            return image
+            
         elif isinstance(img_input, np.ndarray):
             try:
-                return Image.fromarray(img_input)
+                logger.debug(f"接收到NumPy数组, 形状: {img_input.shape}, 类型: {img_input.dtype}")
+                
+                # 检查并处理RGBA数据（4通道）
+                if len(img_input.shape) == 3 and img_input.shape[2] == 4:
+                    logger.info("检测到4通道NumPy数组(RGBA)，转换为RGB")
+                    # 先转为PIL处理RGBA
+                    temp_img = Image.fromarray(img_input)
+                    temp_img = temp_img.convert('RGB')
+                    image = temp_img
+                else:
+                    image = Image.fromarray(img_input)
+                    
+                    # 确保是RGB模式
+                    if image.mode != 'RGB':
+                        logger.info(f"从NumPy数组创建的图像不是RGB模式 ({image.mode})，转换为RGB")
+                        image = image.convert('RGB')
+                    
+                return image
             except Exception as e:
+                logger.error(f"NumPy数组转换失败: {str(e)}")
                 raise ValueError(f"NumPy数组转换失败: {str(e)}") from e
         else:
+            logger.error(f"不支持的输入类型: {type(img_input).__name__}")
             raise ValueError(
                 f"不支持的输入类型: {type(img_input).__name__}, "
                 "仅支持str/Path/PIL.Image/ndarray"

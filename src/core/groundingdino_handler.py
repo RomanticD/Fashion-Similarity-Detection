@@ -4,10 +4,15 @@ import os
 from pathlib import Path
 from PIL import Image
 import numpy as np
+import logging
+import traceback
 
 # 使用微调后的模型
 from src.core.image_similarity import ImageSimilarity
 from src.core.image_processing import ImageProcessor
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 # Set up Python path
 root_dir = Path(__file__).parent.resolve()
@@ -50,8 +55,11 @@ class ClothingDetector:
 
         # Validate weights file
         if not self.weights_path.exists():
+            logger.error(f"权重文件未找到: {self.weights_path}")
             raise FileNotFoundError(
                 f"Weights file not found. Please ensure '{self.weights_path}' exists in the project root.")
+                
+        logger.info(f"ClothingDetector初始化成功: 配置文件={self.config_path}, 权重文件={self.weights_path}, 置信度阈值={self.box_threshold}, 文本提示='{self.text_prompt}'")
 
     def load_model(self):
         """
@@ -60,7 +68,15 @@ class ClothingDetector:
         Returns:
             The loaded model.
         """
-        return load_model(str(self.config_path), str(self.weights_path), device='cpu')
+        logger.info(f"正在加载GroundingDINO模型...")
+        try:
+            model = load_model(str(self.config_path), str(self.weights_path), device='cpu')
+            logger.info("GroundingDINO模型加载成功")
+            return model
+        except Exception as e:
+            logger.error(f"加载模型失败: {e}")
+            logger.debug(traceback.format_exc())
+            raise
 
     def detect_clothes(self, image, frame_window=None, box_threshold=None, text_prompt=None):
         """
@@ -73,27 +89,53 @@ class ClothingDetector:
         Returns:
             list: A list of bounding boxes for detected clothing regions.
         """
+        # 记录图像尺寸和形状
+        if image is None:
+            logger.error("输入图像为空")
+            return []
+            
+        logger.info(f"开始检测图像中的服装区域, 图像形状: {image.shape}")
+        
         # Update box_threshold and text_prompt if provided
         if box_threshold is not None:
+            logger.info(f"使用自定义阈值: {box_threshold}")
             self.box_threshold = box_threshold
         if text_prompt is not None:
+            logger.info(f"使用自定义文本提示: '{text_prompt}'")
             self.text_prompt = text_prompt
+            
+        logger.info(f"使用的检测参数: 置信度阈值={self.box_threshold}, 文本提示='{self.text_prompt}'")
 
         # Load model
-        model = self.load_model()
+        try:
+            model = self.load_model()
+        except Exception as e:
+            logger.error(f"加载模型失败，无法进行检测: {e}")
+            return []
 
         # Get transform function
         transform = self.image_processor.prepare_transform()
+        logger.info("图像变换准备完成")
 
         try:
             # 直接将图像传入 run_inference 方法，让其根据宽高比处理
+            logger.info("开始推理检测...")
             clothes_bboxes = self.image_processor.run_inference(
                 model, transform, image, self.text_prompt, self.box_threshold, frame_window
             )
+            
+            if not clothes_bboxes:
+                logger.warning("未检测到任何服装区域")
+            else:
+                logger.info(f"检测完成，找到 {len(clothes_bboxes)} 个服装区域")
+                # 记录每个检测框的尺寸
+                for i, bbox in enumerate(clothes_bboxes):
+                    logger.debug(f"  区域 #{i+1}: 形状={bbox.shape}, 尺寸={bbox.shape[1]}x{bbox.shape[0]}")
 
             return clothes_bboxes
         except Exception as e:
-            print(f"Error during detection: {e}")
+            logger.error(f"检测过程中出错: {e}")
+            logger.debug(traceback.format_exc())
             return []
 
 

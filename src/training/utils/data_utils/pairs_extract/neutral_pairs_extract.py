@@ -12,7 +12,7 @@ INPUT_DIR = "/Users/sunyuliang/Desktop/AppBuilder/Python/deepfashion_train"  # �
 IMAGE_DIR_NAME = "image"         # 图片文件夹名（如"image"或"images"）
 ANNO_DIR_NAME = "annos"          # 标注文件夹名
 OUTPUT_BASE_DIR = "/Users/sunyuliang/Desktop/AppBuilder/Python/dinov2_train/training_pairs"  # 输出基目录
-RANDOM_SEED = 42                 # 随机种子（固定以确保可复现性）
+RANDOM_SEED = 40                 # 随机种子（固定以确保可复现性）
 MIN_ID_DIFF = 50                 # 最小ID差异（中立对要求ID差绝对值≥此值）
 MAX_TRIES_PER_PAIR = 1000        # 每对最多尝试次数（避免陷入死循环）
 
@@ -23,7 +23,7 @@ def parse_arguments():
                         help='批次起始数值ID（如50000对应050000.jpg）')
     parser.add_argument('--batch_end', type=int, default=190000,
                         help='批次结束数值ID（如60000对应060000.jpg）')
-    parser.add_argument('--pairs_to_extract', type=int, default=495,
+    parser.add_argument('--pairs_to_extract', type=int, default=5,
                         help='本次提取的中立样本对数')
     return parser.parse_args()
 

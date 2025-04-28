@@ -7,8 +7,8 @@ from pathlib import Path
 # ======================
 INPUT_PAIRS_DIR = Path("/Users/sunyuliang/Desktop/AppBuilder/Python/dinov2_train/training_pairs")  # 原始对文件夹路径
 OUTPUT_EXAMINE_DIR = Path("/Users/sunyuliang/Desktop/AppBuilder/Python/examine")  # 可视化目标目录
-START_PAIR = 1201  # 起始对号（如1对应pair_0001）
-END_PAIR = 1250  # 结束对号（如100对应pair_0100）
+START_PAIR = 1251  # 起始对号（如1对应pair_0001）
+END_PAIR = 1750  # 结束对号（如100对应pair_0100）
 
 
 def main():

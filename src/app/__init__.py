@@ -8,6 +8,7 @@ from .images_route import api_bp
 from .split_images_route import api_sp
 from .image_upload_route import api_up
 from .supabse_route import api_auth
+from .image_processing_route import api_proc
 
 
 def create_app():
@@ -28,6 +29,7 @@ def create_app():
     app.register_blueprint(api_auth)
     app.register_blueprint(api_id)
     app.register_blueprint(api_sh)
+    app.register_blueprint(api_proc)
 
     # 创建一个请求前的钩子，设置超时响应
     @app.before_request

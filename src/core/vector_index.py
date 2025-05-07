@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import pickle
+import threading
+import time
 from pathlib import Path
 from sklearn.neighbors import NearestNeighbors
 from src.repo.split_images_repo import select_all_vectors
@@ -16,6 +18,15 @@ logger = logging.getLogger(__name__)
 ROOT_DIR = Path(__file__).parent.parent.parent
 INDEX_FILE = ROOT_DIR / "vector_nn_index.pkl"
 ID_MAP_FILE = ROOT_DIR / "vector_id_map.json"
+
+# 全局锁，用于确保只有一个线程能够重建索引
+rebuild_lock = threading.RLock()
+# 全局标志，指示是否有重建操作正在进行
+rebuilding_in_progress = False
+# 上次重建时间
+last_rebuild_time = 0
+# 最小重建间隔（秒）
+MIN_REBUILD_INTERVAL = 10
 
 
 class VectorIndex:
@@ -199,6 +210,85 @@ class VectorIndex:
             self.id_map_file.unlink()
 
         return self.build_index()
+        
+    def thread_safe_rebuild_index(self, force=False):
+        """
+        Thread-safe method to rebuild the index with rate limiting.
+        
+        Args:
+            force (bool): If True, forces rebuild even if another rebuild is in progress.
+            
+        Returns:
+            bool: True if index was rebuilt, False if skipped due to ongoing rebuild or rate limiting.
+        """
+        global rebuilding_in_progress, last_rebuild_time
+        
+        # 检查是否应该限制重建频率
+        current_time = time.time()
+        time_since_last_rebuild = current_time - last_rebuild_time
+        
+        # 尝试获取锁，不阻塞
+        acquired = rebuild_lock.acquire(blocking=False)
+        
+        if acquired:
+            try:
+                # 二次检查，确保在获取锁的过程中状态没有改变
+                if rebuilding_in_progress and not force:
+                    logger.info("Another thread is already rebuilding the index. Skipping.")
+                    return False
+                
+                # 检查重建频率限制
+                if time_since_last_rebuild < MIN_REBUILD_INTERVAL and not force:
+                    logger.info(f"Index was recently rebuilt ({time_since_last_rebuild:.1f}s ago). Skipping.")
+                    return False
+                
+                # 标记重建开始
+                rebuilding_in_progress = True
+                logger.info("Starting thread-safe index rebuild")
+                
+                # 执行实际的重建
+                index, ids, vectors = self.rebuild_index()
+                
+                # 更新时间戳和状态
+                last_rebuild_time = time.time()
+                rebuilding_in_progress = False
+                
+                if index is not None:
+                    logger.info(f"Successfully rebuilt index with {len(ids)} vectors")
+                    return True
+                else:
+                    logger.warning("No vectors found in database for index building")
+                    return False
+                    
+            except Exception as e:
+                rebuilding_in_progress = False
+                logger.error(f"Error during thread-safe rebuild: {e}", exc_info=True)
+                return False
+            finally:
+                rebuild_lock.release()
+        else:
+            logger.info("Could not acquire lock for index rebuilding. Another thread is likely rebuilding.")
+            return False
+
+    @staticmethod
+    def async_rebuild_index():
+        """
+        Asynchronously rebuild the index in a separate thread.
+        This is ideal for post-upload rebuilds to not block the request.
+        
+        Returns:
+            threading.Thread: The thread that is rebuilding the index.
+        """
+        def _rebuild_task():
+            index_manager = VectorIndex()
+            index_manager.thread_safe_rebuild_index()
+            
+        thread = threading.Thread(target=_rebuild_task)
+        thread.daemon = True  # Set as daemon so it doesn't block program exit
+        thread.start()
+        logger.info("Started asynchronous index rebuild in background thread")
+        return thread
+
 
 if __name__ == "__main__":
     # Build index when run directly

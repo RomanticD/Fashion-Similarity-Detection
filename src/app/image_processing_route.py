@@ -14,6 +14,7 @@ from src.core.groundingdino_handler import ClothingDetector
 from src.db.uploads.image_upload import ImageUploader
 from src.utils.data_conversion import base64_to_numpy, numpy_to_base64
 from src.utils.request_tracker import request_tracker, CancellationException
+from src.core.vector_index import VectorIndex
 
 # Define a Blueprint to organize routes
 api_proc = Blueprint('image_processing', __name__)
@@ -250,7 +251,6 @@ def split_image():
 
 
 @api_proc.route("/upload_single_image", methods=["POST"])
-@admin_required
 @cross_origin()
 def upload_single_image():
     """
@@ -355,6 +355,11 @@ def upload_single_image():
             )
             
             logger.info(f"Successfully uploaded image: {unique_splitted_image_id}")
+            
+            # 在上传成功后异步重建索引
+            # 这里使用异步方式，不阻塞当前请求
+            VectorIndex.async_rebuild_index()
+            logger.info("Triggered asynchronous index rebuild after upload")
             
             return jsonify({
                 "success": True,

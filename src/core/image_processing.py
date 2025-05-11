@@ -19,7 +19,7 @@ class ImageProcessor:
     MIN_PAD_WIDTH = 448
     MIN_PAD_HEIGHT = 1000
 
-    MIN_WIDTH = 160
+    MIN_WIDTH = 100
 
     def split_image_vertically(self, image: np.ndarray, segment_height: int) -> List[np.ndarray]:
         """
@@ -199,7 +199,7 @@ class ImageProcessor:
                 annotated_segments.append(annotated_segment)
 
                 if num_boxes > 0:
-                    width_min = max(160, segment.shape[1] / 5)  # 最小宽度要求
+                    width_min = self.MIN_PAD_WIDTH
                     logger.info(f"当前分段的最小宽度要求: {width_min:.1f}像素")
                 
                 for j, box in enumerate(detection.xyxy):
@@ -209,7 +209,7 @@ class ImageProcessor:
                     
                     logger.info(f"边界框 #{j+1}: 坐标=({x1},{y1},{x2},{y2}), 尺寸={bbox_width}x{bbox_height}")
                     
-                    width_min = max(160, segment.shape[1] / 5)  # 保留原有逻辑
+                    width_min = self.MIN_WIDTH
 
                     if is_padded:
                         # 已填充图像的处理逻辑
@@ -224,15 +224,15 @@ class ImageProcessor:
                                 logger.warning(f"跳过边界框 #{j+1}: 高度不足 ({bbox_height}<{self.MIN_WIDTH})")
                     else:
                         # 未填充图像的处理逻辑
-                        if width_min <= bbox_width <= bbox_height:
-                            logger.info(f"接受边界框 #{j+1}: {width_min}≤宽度({bbox_width})≤高度({bbox_height})")
+                        if width_min <= bbox_width <= bbox_height * 1.25 and width_min <= bbox_height:
+                            logger.info(f"接受边界框 #{j+1}: {width_min}≤宽度({bbox_width})，高度({bbox_height})")
                             bbox_image = segment[y1:y2, x1:x2]
                             bboxes.append(bbox_image)
                         else:
                             if bbox_width < width_min:
                                 logger.warning(f"跳过边界框 #{j+1}: 宽度不足 ({bbox_width}<{width_min})")
-                            if bbox_width > bbox_height:
-                                logger.warning(f"跳过边界框 #{j+1}: 宽度({bbox_width})>高度({bbox_height})")
+                            if bbox_width > bbox_height * 1.25:
+                                logger.warning(f"跳过边界框 #{j+1}: 高度不足 ({bbox_height})<({width_min * 0.8})")
             except Exception as e:
                 logger.error(f"推理过程中出错: {e}")
                 import traceback

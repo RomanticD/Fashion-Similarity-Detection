@@ -29,21 +29,9 @@ class ImageUploader:
         self.similarity_model = ImageSimilarity
         logger.info("ImageUploader初始化完成，使用微调DINOv2模型")
 
-    def upload_splitted_image_to_db(self, image_data: np.ndarray, splitted_image_id: str,
-                                    splitted_image_path: str, original_image_id: str,
+    def upload_splitted_image_to_db(self, image_data: np.ndarray, splitted_image_id: str, 
+                                    splitted_image_path: str, original_image_id: str, 
                                     bounding_box: str, image_format: str, vector: str):
-        """
-        Upload a segmented image and its feature vector to the database.
-
-        Args:
-            image_data (np.ndarray): The image data as a numpy array.
-            splitted_image_id (str): The ID for the segmented image.
-            splitted_image_path (str): The path where the image is saved.
-            original_image_id (str): The ID of the original image.
-            bounding_box (str): The bounding box coordinates.
-            image_format (str): The image format (e.g., 'PNG', 'JPEG').
-            vector (str): The feature vector.
-        """
         try:
             logger.info(f"开始上传分割图像到数据库: {splitted_image_id}")
             
@@ -63,11 +51,11 @@ class ImageUploader:
             # Decode to binary data
             binary_data = base64.b64decode(base64_image)
 
-            # Convert vector to JSON string
-            vector_json = json.dumps(vector.tolist())
+            # 修正向量处理逻辑（直接使用已序列化的字符串）
+            vector_json = vector  # 跳过二次序列化
             
-            logger.debug(f"图像 {splitted_image_id} 转换完成，图像大小: {len(binary_data)} 字节, 向量维度: {len(vector.tolist())}")
-
+            logger.debug(f"图像 {splitted_image_id} 转换完成，向量长度: {len(json.loads(vector))}")
+            
             # Save to database
             save_result = save_to_db(splitted_image_id, splitted_image_path, original_image_id,
                    bounding_box, binary_data, vector_json)

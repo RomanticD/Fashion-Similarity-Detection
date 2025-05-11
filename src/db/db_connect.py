@@ -12,6 +12,7 @@ load_dotenv()
 
 # --------------- 数据库连接 -------------------
 
+
 def get_connection():
     """获取数据库连接"""
     connection = pymysql.connect(
